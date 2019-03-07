@@ -1,0 +1,13 @@
+(* Load "examples/pairing.tt". *)
+
+Axiom A : Type.
+(* Definition B := exists x : A, Type. *)
+Axiom P : (exists x : A, Type) → Type.
+Axiom p : exists x : A, Type.
+
+(* Check (fst p, snd p) : exists x : A, Type. *)
+
+Axiom u : P p. 
+
+Check u : P p.
+(* Check u: P (fst p, snd p). *)
