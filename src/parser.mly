@@ -11,12 +11,13 @@
 (* Parentheses & punctuations *)
 %token LPAREN RPAREN PERIOD
 %token COLONEQ
-%token COMMA COLON DARROW ARROW
+%token COMMA COLON DARROW ARROW TIMES
 
 (* Expressions *)
 %token TYPE
-%token PROD
+%token PROD SUM
 %token LAMBDA
+%token FST SND
 
 (* Toplevel commands *)
 
@@ -68,7 +69,9 @@ term : mark_location(plain_term) { $1 }
 plain_term:
   | e=plain_infix_term                          { e }
   | PROD a=prod_abstraction COMMA e=term        { Input.Prod (a, e) }
+  | SUM a=sum_abstraction COMMA e=term          { Input.Sum (a, e) }
   | e1=infix_term ARROW e2=term                 { Input.Arrow (e1, e2) }
+  | e1=infix_term TIMES e2=term                 { Input.Times (e1, e2) }
   | LAMBDA a=lambda_abstraction DARROW e=term   { Input.Lambda (a, e) }
   | e=infix_term COLON t=term                   { Input.Ascribe (e, t) }
 
@@ -86,6 +89,8 @@ app_term: mark_location(plain_app_term) { $1 }
 plain_app_term:
   | e=plain_prefix_term          { e }
   | e1=app_term e2=prefix_term   { Input.Apply (e1, e2) }
+  | FST e=prefix_term            { Input.Fst e }
+  | SND e=prefix_term            { Input.Snd e }
 
 prefix_term: mark_location(plain_prefix_term) { $1 }
 plain_prefix_term:
@@ -99,6 +104,8 @@ plain_prefix_term:
 (* simple_term : mark_location(plain_simple_term) { $1 } *)
 plain_simple_term:
   | LPAREN e=plain_term RPAREN         { e }
+  | LPAREN e1=term COMMA e2=term RPAREN
+                                       { Input.Pair (e1, e2) }
   | TYPE                               { Input.Type }
   | x=var_name                         { Input.Var x }
 
@@ -124,6 +131,10 @@ lambda_abstraction:
   | lst=nonempty_list(typed_binder)          { List.map (fun (xs, t) -> (xs, Some t)) lst }
 
 prod_abstraction:
+  | xs=nonempty_list(var_name) COLON t=term  { [(xs, t)] }
+  | lst=nonempty_list(typed_binder)          { lst }
+
+sum_abstraction:
   | xs=nonempty_list(var_name) COLON t=term  { [(xs, t)] }
   | lst=nonempty_list(typed_binder)          { lst }
 
