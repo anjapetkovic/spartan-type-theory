@@ -21,6 +21,8 @@ let rec norm_expr ~strategy ctx e =
 
   | TT.Prod _ -> e
 
+  | TT.Sum _ -> e
+
   | TT.Lambda _ -> e
 
   | TT.Apply (e1, e2) ->
@@ -40,6 +42,32 @@ let rec norm_expr ~strategy ctx e =
        | _ -> TT.Apply (e1, e2)
      end
 
+  | TT.Pair (e1, e2) ->
+     let e1 = norm_expr ~strategy ctx e1
+     and e2 = norm_expr ~strategy ctx e2
+     in
+     TT.Pair(e1,e2)
+
+  | TT.Fst e' ->
+     let e' = norm_expr ~strategy ctx e'
+     in
+     begin
+       match e' with
+       | TT.Pair (e1, _) ->
+          norm_expr ~strategy ctx e1
+       | _ -> TT.Fst e'
+     end
+
+  | TT.Snd e' ->
+     let e' = norm_expr ~strategy ctx e'
+     in
+     begin
+       match e' with
+       | TT.Pair (_, e2) ->
+          norm_expr ~strategy ctx e2
+       | _ -> TT.Snd e'
+     end
+
 (** Normalize a type *)
 let norm_ty ~strategy ctx (TT.Ty ty) =
   let ty = norm_expr ~strategy ctx ty in
@@ -50,6 +78,13 @@ let as_prod ctx t =
   let TT.Ty t' = norm_ty ~strategy:WHNF ctx t in
   match t' with
   | TT.Prod ((x, t), u) -> Some ((x, t), u)
+  | _ -> None
+
+(** Normalize a type to a sum. *)
+let as_sum ctx t =
+  let TT.Ty t' = norm_ty ~strategy:WHNF ctx t in
+  match t' with
+  | TT.Sum ((x, t), u) -> Some ((x, t), u)
   | _ -> None
 
 (** Compare expressions [e1] and [e2] at type [ty]? *)
@@ -70,8 +105,14 @@ let rec expr ctx e1 e2 ty =
        and u = TT.unabstract_ty x' u in
        expr ctx e1 e2 u
 
+   | TT.Sum ((_, t), u) ->
+       (* Compare componentwise use Fst and Snd *)
+       (expr ctx (TT.Fst e1) (TT.Fst e2) t) && (expr ctx (TT.Snd e1) (TT.Snd e2)  (TT.instantiate_ty 0 (TT.Fst e1) u))
+
     | TT.Type
     | TT.Apply _
+    | TT.Fst _
+    | TT.Snd _
     | TT.Bound _
     | TT.Atom _ ->
        (* Type-directed phase is done, we compare normal forms. *)
@@ -79,6 +120,7 @@ let rec expr ctx e1 e2 ty =
        and e2 = norm_expr ~strategy:WHNF ctx e2 in
        expr_whnf ctx e1 e2
 
+    | TT.Pair _
     | TT.Lambda _ ->
        (* A type should never normalize to an abstraction *)
        assert false
@@ -88,16 +130,16 @@ let rec expr ctx e1 e2 ty =
 and expr_whnf ctx e1 e2 =
   match e1, e2 with
 
-  | TT.Type, TT.Type -> true
+   | TT.Type, TT.Type -> true
 
-  | TT.Bound k1, TT.Bound k2 ->
+   | TT.Bound k1, TT.Bound k2 ->
      (* We should never be in a situation where we compare bound variables,
         as that would mean that we forgot to unabstract a lambda or a product. *)
      assert false
 
-  | TT.Atom x, TT.Atom y -> x = y
+   | TT.Atom x, TT.Atom y -> x = y
 
-  | TT.Prod ((x, t1), u1), TT.Prod ((_, t2), u2)  ->
+   | TT.Prod ((x, t1), u1), TT.Prod ((_, t2), u2)  ->
      ty ctx t1 t2 &&
      begin
        let x' = TT.new_atom x in
@@ -107,12 +149,22 @@ and expr_whnf ctx e1 e2 =
        ty ctx u1 u2
      end
 
-  | TT.Lambda ((x, t1), e1), TT.Lambda ((_, t2), e2)  ->
+   | TT.Sum ((x, t1), u1), TT.Sum ((_, t2), u2)  ->
+     ty ctx t1 t2 &&
+     begin
+       let x' = TT.new_atom x in
+       let ctx = Context.extend_ident x' t1 ctx
+       and u1 = TT.unabstract_ty x' u1
+       and u2 = TT.unabstract_ty x' u2 in
+       ty ctx u1 u2
+     end
+
+   | TT.Lambda ((x, t1), e1), TT.Lambda ((_, t2), e2)  ->
      (* We should never have to compare two lambdas, as that would mean that the
         type-directed phase did not figure out that these have product types. *)
      assert false
 
-  | TT.Apply (e11, e12), TT.Apply (e21, e22) ->
+   | TT.Apply (e11, e12), TT.Apply (e21, e22) ->
      let rec collect sp1 sp2 e1 e2 =
        match e1, e2 with
        | TT.Apply (e11, e12), TT.Apply (e21, e22) ->
@@ -127,9 +179,24 @@ and expr_whnf ctx e1 e2 =
        | Some ((a1, sp1), (a2, sp2)) -> spine ctx (a1, sp1) (a2, sp2)
      end
 
+   | TT.Pair (e11, e12), TT.Pair(e21, e22) ->
+     (* We should never have to compare two pairs, as that would mean that the
+        type-directed phase did not figure out that these have sum types. *)
+     assert false
 
-  | (TT.Type | TT.Bound _ | TT.Atom _ | TT.Prod _ | TT.Lambda _ | TT.Apply _), _ ->
-     false
+   | TT.Fst e1, TT.Fst e2 ->
+     (* Since e1 and e2 are normalised, we can only get to atoms or applications. Atoms don't care about 
+     the types, applications compute them from the context *)
+      expr_whnf ctx e1 e2 
+
+   | TT.Snd e1, TT.Snd e2 ->
+     (* Since e1 and e2 are normalised, we can only get to atoms or applications. Atoms don't care about 
+     the types, applications compute them from the context *)
+     expr_whnf ctx e1 e2
+
+   | (TT.Type | TT.Bound _ | TT.Atom _ | TT.Prod _ | TT.Sum _ ), _ -> false
+   | (TT.Lambda _ | TT.Pair _ | TT.Apply _ | TT.Fst _ | TT.Snd _ ), _ -> false
+
 
 (** Compare two types. *)
 and ty ctx (TT.Ty ty1) (TT.Ty ty2) =

@@ -7,12 +7,16 @@ University of Birmingham in December 2017. The video recording of the lecture [H
 
 ## The type theory
 
-The dependent type theory `spartan` has the following ingridients:
+The dependent type theory `spartan` has the following ingredients:
 
 * A universe `Type` with `Type : Type`.
 * Dependent products written as `forall (x : T₁), T₂` or `∀ (x : T₁), T₂` or `∏ (x : T₁), T₂`.
+* Dependent sums written as `exists (x : T₁), T₂` or `Σ (x : T₁), T₂`.
 * Functions written as `fun (x : T) => e` or `λ (x : T) ⇒ e`. The typing annotation may be omitted.
 * Application written as `e₁ e₂`.
+* Pairs written as `(e₁, e₂)`
+* First projection written as `fst e`.
+* Second projection written as `snd e`.
 * Type ascription written as `e : T`.
 
 Top-level commands:

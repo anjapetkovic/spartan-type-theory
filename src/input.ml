@@ -10,6 +10,11 @@ and expr' =
   | Apply of expr * expr
   | Arrow of expr * expr
   | Ascribe of expr * ty
+  | Sum of (Name.ident list * ty) list * ty
+  | Pair of expr * expr
+  | Times of expr * expr
+  | Fst of expr
+  | Snd of expr
 
 (** Parsed type (equal to expression). *)
 and ty = expr

@@ -13,14 +13,18 @@ let reserved = [
   ("∀", Parser.PROD) ;
   ("Π", Parser.PROD) ;
   ("∏", Parser.PROD) ;
-  ("Type", Parser.TYPE)
+  ("Type", Parser.TYPE) ;
+  ("exists", Parser.SUM);
+  ("Σ", Parser.SUM);
+  ("fst", Parser.FST) ;
+  ("snd", Parser.SND) 
 ]
 
 let name =
   [%sedlex.regexp? (('_' | alphabetic),
-                 Star ('_' | alphabetic
-                      | 185 | 178 | 179 | 8304 .. 8351 (* sub-/super-scripts *)
-                      | '0'..'9' | '\'')) | math]
+                    Star ('_' | alphabetic
+                         | 185 | 178 | 179 | 8304 .. 8351 (* sub-/super-scripts *)
+                         | '0'..'9' | '\'')) | math]
 
 (*
 let digit = [%sedlex.regexp? '0'..'9']
@@ -68,12 +72,12 @@ and token_aux ({ Ulexbuf.stream;_ } as lexbuf) =
   | start_longcomment        -> f (); comments 0 lexbuf
   | Plus hspace              -> f (); token_aux lexbuf
   | quoted_string            -> f ();
-     let s = Ulexbuf.lexeme lexbuf in
-     let l = String.length s in
-     let n = ref 0 in
-     String.iter (fun c -> if c = '\n' then incr n) s;
-     Ulexbuf.new_line ~n:!n lexbuf;
-     Parser.QUOTED_STRING (String.sub s 1 (l - 2))
+    let s = Ulexbuf.lexeme lexbuf in
+    let l = String.length s in
+    let n = ref 0 in
+    String.iter (fun c -> if c = '\n' then incr n) s;
+    Ulexbuf.new_line ~n:!n lexbuf;
+    Parser.QUOTED_STRING (String.sub s 1 (l - 2))
   | '_'                      -> f (); Parser.UNDERSCORE
   | '('                      -> f (); Parser.LPAREN
   | ')'                      -> f (); Parser.RPAREN
@@ -87,38 +91,38 @@ and token_aux ({ Ulexbuf.stream;_ } as lexbuf) =
   (* We record the location of operators here because menhir cannot handle %infix and
      mark_location simultaneously, it seems. *)
   | prefixop                 -> f (); let op = Name.Ident (Ulexbuf.lexeme lexbuf, Name.Prefix) in
-                                      let op = Location.locate ~loc:(loc_of lexbuf) op in
-                                      Parser.PREFIXOP op
+    let op = Location.locate ~loc:(loc_of lexbuf) op in
+    Parser.PREFIXOP op
   | infixop0                 -> f (); let op = Name.Ident (Ulexbuf.lexeme lexbuf, Name.Infix Level.Infix0) in
-                                      let op = Location.locate ~loc:(loc_of lexbuf) op in
-                                      Parser.INFIXOP0 op
+    let op = Location.locate ~loc:(loc_of lexbuf) op in
+    Parser.INFIXOP0 op
   | infixop1                 -> f (); let op = Name.Ident (Ulexbuf.lexeme lexbuf, Name.Infix Level.Infix1) in
-                                      let op = Location.locate ~loc:(loc_of lexbuf) op in
-                                      Parser.INFIXOP1 op
+    let op = Location.locate ~loc:(loc_of lexbuf) op in
+    Parser.INFIXOP1 op
   | infixop2                 -> f (); let op = Name.Ident (Ulexbuf.lexeme lexbuf, Name.Infix Level.Infix2) in
-                                      let op = Location.locate ~loc:(loc_of lexbuf) op in
-                                      Parser.INFIXOP2 op
+    let op = Location.locate ~loc:(loc_of lexbuf) op in
+    Parser.INFIXOP2 op
   (* Comes before infixop3 because ** matches the infixop3 pattern too *)
   | infixop4                 -> f (); let op = Name.Ident (Ulexbuf.lexeme lexbuf, Name.Infix Level.Infix4) in
-                                      let op = Location.locate ~loc:(loc_of lexbuf) op in
-                                      Parser.INFIXOP4 op
+    let op = Location.locate ~loc:(loc_of lexbuf) op in
+    Parser.INFIXOP4 op
   | infixop3                 -> f (); let op = Name.Ident (Ulexbuf.lexeme lexbuf, Name.Infix Level.Infix3) in
-                                      let op = Location.locate ~loc:(loc_of lexbuf) op in
-                                      Parser.INFIXOP3 op
+    let op = Location.locate ~loc:(loc_of lexbuf) op in
+    Parser.INFIXOP3 op
 
   | eof                      -> f (); Parser.EOF
   | name                     -> f ();
     let n = Ulexbuf.lexeme lexbuf in
     begin try List.assoc n reserved
-    with Not_found -> Parser.NAME (Name.Ident (n, Name.Word))
+      with Not_found -> Parser.NAME (Name.Ident (n, Name.Word))
     end
 (*
   | numeral                  -> f (); let k = safe_int_of_string lexbuf in NUMERAL k
 *)
   | any -> f ();
-     let w = Ulexbuf.lexeme lexbuf in
-     let loc = loc_of lexbuf in
-     Ulexbuf.error ~loc (Ulexbuf.Unexpected w)
+    let w = Ulexbuf.lexeme lexbuf in
+    let loc = loc_of lexbuf in
+    Ulexbuf.error ~loc (Ulexbuf.Unexpected w)
   | _ -> assert false
 
 and comments level ({ Ulexbuf.stream;_ } as lexbuf) =
@@ -151,14 +155,14 @@ let run
     parser lexer
   with
   | Parser.Error ->
-     let w = Ulexbuf.lexeme lexbuf in
-     let loc = loc_of lexbuf in
-     Ulexbuf.error ~loc (Ulexbuf.Unexpected w)
+    let w = Ulexbuf.lexeme lexbuf in
+    let loc = loc_of lexbuf in
+    Ulexbuf.error ~loc (Ulexbuf.Unexpected w)
   | Sedlexing.MalFormed ->
-     let loc = loc_of lexbuf in
-     Ulexbuf.error ~loc Ulexbuf.MalformedUTF8
-  (* | Sedlexing.InvalidCodepoint _ -> *)
-  (*    assert false (\* Shouldn't happen with UTF8 *\) *)
+    let loc = loc_of lexbuf in
+    Ulexbuf.error ~loc Ulexbuf.MalformedUTF8
+(* | Sedlexing.InvalidCodepoint _ -> *)
+(*    assert false (\* Shouldn't happen with UTF8 *\) *)
 
 
 let read_file parse fn =

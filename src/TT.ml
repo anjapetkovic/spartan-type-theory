@@ -13,8 +13,12 @@ type expr =
   | Atom of atom (** primitive symbol *)
   | Type (** the type of types *)
   | Prod of (Name.ident * ty) * ty (** dependent product *)
+  | Sum of (Name.ident * ty) * ty (** dependent sum *)
   | Lambda of (Name.ident * ty) * expr (** lambda abstraction *)
   | Apply of expr * expr (** application *)
+  | Pair of expr * expr (** dependent pair *)
+  | Fst of expr (** first projection of a pair *)
+  | Snd of expr (** second projection of a pair *)
 
 (** Type *)
 and ty = Ty of expr
@@ -45,6 +49,11 @@ let rec instantiate k e e' =
      and u = instantiate_ty (k+1) e u in
      Prod ((x, t), u)
 
+  | Sum ((x, t), u) ->
+     let t = instantiate_ty k e t
+     and u = instantiate_ty (k+1) e u in
+     Sum ((x, t), u)
+
   | Lambda ((x, t), e2) ->
      let t = instantiate_ty k e t
      and e2 = instantiate (k+1) e e2 in
@@ -54,6 +63,19 @@ let rec instantiate k e e' =
      let e1 = instantiate k e e1
      and e2 = instantiate k e e2 in
      Apply (e1, e2)
+     
+  | Pair (e1, e2) ->
+     let e1 = instantiate k e e1
+     and e2 = instantiate k e e2 in
+     Pair (e1, e2)
+     
+  | Fst e1 ->
+     let e1 = instantiate k e e1 in
+     Fst e1
+
+  | Snd e1 ->
+     let e1 = instantiate k e e1 in 
+     Snd e1
 
 
 (** [instantiate k e t] instantiates deBruijn index [k] with [e] in type [t]. *)
@@ -76,6 +98,11 @@ let rec abstract ?(lvl=0) x e =
      and u = abstract_ty ~lvl:(lvl+1) x u in
      Prod ((y, t), u)
 
+  | Sum ((y, t), u) ->
+     let t = abstract_ty ~lvl x t
+     and u = abstract_ty ~lvl:(lvl+1) x u in
+     Sum ((y, t), u)
+
   | Lambda ((y, t), e) ->
      let t = abstract_ty ~lvl x t
      and e = abstract ~lvl:(lvl+1) x e in
@@ -85,6 +112,19 @@ let rec abstract ?(lvl=0) x e =
      let e1 = abstract ~lvl x e1
      and e2 = abstract ~lvl x e2 in
      Apply (e1, e2)
+
+  | Pair (e1, e2) ->
+     let e1 = abstract ~lvl x e1
+     and e2 = abstract ~lvl x e2 in
+     Pair (e1, e2) 
+     
+  | Fst e1 ->
+     let e1 = abstract ~lvl x e1 in
+     Fst e1
+  
+  | Snd e1 ->
+     let e1 = abstract ~lvl x e1 in 
+     Snd e1
 
 (** [abstract_ty ~lvl x t] abstracts atom [x] into bound index [lvl] in type [t]. *)
 and abstract_ty ?(lvl=0) x (Ty t) =
@@ -103,8 +143,12 @@ let rec occurs k = function
   | Atom _ -> false
   | Type -> false
   | Prod ((_, t), u) -> occurs_ty k t || occurs_ty (k+1) u
+  | Sum ((_, t), u) -> occurs_ty k t || occurs_ty (k+1) u
   | Lambda ((_, t), e) -> occurs_ty k t || occurs (k+1) e
   | Apply (e1, e2) -> occurs k e1 || occurs k e2
+  | Pair (e1, e2) -> occurs k e1 || occurs k e2
+  | Fst e -> occurs k e
+  | Snd e -> occurs k e
 
 (** [occurs_ty k t] returns [true] when de Bruijn index [k] occurs in type [t]. *)
 and occurs_ty k (Ty t) = occurs k t
@@ -154,6 +198,14 @@ and print_expr' ~penv ?max_level e ppf =
       | Apply (e1, e2) -> print_app ?max_level ~penv e1 e2 ppf
 
       | Prod ((x, u), t) -> print_prod ?max_level ~penv ((x, u), t) ppf
+
+      | Sum ((x, u), t) -> print_sum ?max_level ~penv ((x, u), t) ppf (** broken! *)
+
+      | Pair (e1, e2) -> print_pair ?max_level ~penv e1 e2 ppf (** broken! *)
+
+      | Fst e1 -> print_fst ?max_level ~penv e1 ppf (** broken! *)
+
+      | Snd e1 -> print_snd ?max_level ~penv e1 ppf (** broken! *)
 
 and print_ty ?max_level ~penv (Ty t) ppf = print_expr ?max_level ~penv t ppf
 
@@ -254,3 +306,42 @@ and print_prod ?max_level ~penv ((x, u), t) ppf =
                                (print_ty ~max_level:Level.ascription)
                                (fun ~penv -> print_ty ~max_level:Level.in_binder ~penv t)
                                xus)
+
+(** [print_sum ((x, u), t) ppf] prints the given sum using formatter [ppf]. *)
+(* There is a lot of boilerplate here, maybe we can make this a one function with a parameter  *)
+and print_sum ?max_level ~penv ((x, u), t) ppf =
+  if not (occurs_ty 0 t) then
+    Print.print ?max_level ~at_level:Level.arr ppf "@[<hov>%t@ %s@ %t@]"
+          (print_ty ~max_level:Level.arr_left ~penv u)
+          (Print.char_times ())
+          (print_ty ~max_level:Level.arr_right ~penv:(add_forbidden (Name.anonymous ()) penv) t)
+  else
+    let rec collect xus ((Ty t) as t_ty) =
+      match t with
+      | Sum ((x, u), t_ty) when occurs_ty 0 t_ty ->
+         collect ((x, u) :: xus) t_ty
+      | _ ->
+         (List.rev xus, t_ty)
+    in
+    let xus, t = collect [(x,u)] t in
+    Print.print ?max_level ~at_level:Level.binder ppf "%s%t"
+                (Print.char_sum ())
+                (print_binders ~penv
+                               (print_ty ~max_level:Level.ascription)
+                               (fun ~penv -> print_ty ~max_level:Level.in_binder ~penv t)
+                               xus)
+
+and print_pair ?max_level ~penv e1 e2 ppf =
+    Print.print ppf ?max_level ~at_level:Level.pair "(%t@, %t)"
+                       (print_expr ~max_level:Level.pair_left ~penv e1)
+                       (print_expr ~max_level:Level.pair_right ~penv e2)
+
+and print_fst ?max_level ~penv e ppf =
+    Print.print ppf ?max_level ~at_level:Level.app "%s %t"
+                       (Print.char_fst ())
+                       (print_expr ~max_level:Level.app_right ~penv e)
+
+and print_snd ?max_level ~penv e ppf =
+    Print.print ppf ?max_level ~at_level:Level.app "%s %t"
+                        (Print.char_snd ())
+                        (print_expr ~max_level:Level.app_right ~penv e)

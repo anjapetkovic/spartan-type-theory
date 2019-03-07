@@ -23,7 +23,7 @@ let print_error err ppf =
   | AlreadyDefined x -> Format.fprintf ppf "%t is already defined" (Name.print_ident x)
 
 (** A desugaring context is a list of known identifiers, which is used to compute de
-   Bruijn indices. *)
+    Bruijn indices. *)
 type context = Name.ident list
 
 (** Initial empty context *)
@@ -37,7 +37,7 @@ let index x ctx =
   let rec search k = function
     | [] -> None
     | y :: ys ->
-     if x = y then Some k else search (k+1) ys
+      if x = y then Some k else search (k+1) ys
   in
   search 0 ctx
 
@@ -45,44 +45,73 @@ let index x ctx =
 let rec expr ctx {Location.data=e; Location.loc=loc} =
   match e with
 
-    | Input.Var x ->
-       begin match index x ctx with
-       | None -> error ~loc (UnknownIdentifier x)
-       | Some k -> Location.locate ~loc (Syntax.Var k)
-       end
+  | Input.Var x ->
+    begin match index x ctx with
+      | None -> error ~loc (UnknownIdentifier x)
+      | Some k -> Location.locate ~loc (Syntax.Var k)
+    end
 
-    | Input.Type -> Location.locate ~loc Syntax.Type
+  | Input.Type -> Location.locate ~loc Syntax.Type
 
-    | Input.Prod (a, u) ->
-       let ctx, xts = prod_abstraction ctx a in
-       let u = ty ctx u in
-       List.fold_right
-         (fun (x, t) e -> Location.locate ~loc:t.Location.loc (Syntax.Prod ((x, t), e)))
-         xts u
+  | Input.Prod (a, u) ->
+    let ctx, xts = prod_abstraction ctx a in
+    let u = ty ctx u in
+    List.fold_right
+      (fun (x, t) e -> Location.locate ~loc:t.Location.loc (Syntax.Prod ((x, t), e)))
+      xts u
 
-    | Input.Arrow (t1, t2) ->
-       let t1 = ty ctx t1
-       and t2 = ty ctx t2 in
-       let t2 = Syntax.shift_ty 0 1 t2 in
-       let x = Name.anonymous () in
-       Location.locate ~loc (Syntax.Prod ((x, t1), t2))
+  | Input.Arrow (t1, t2) ->
+    let t1 = ty ctx t1
+    and t2 = ty ctx t2 in
+    let t2 = Syntax.shift_ty 0 1 t2 in
+    let x = Name.anonymous () in
+    Location.locate ~loc (Syntax.Prod ((x, t1), t2))
 
-    | Input.Lambda (a, e) ->
-       let ctx, lst = lambda_abstraction ctx a in
-       let e = expr ctx e in
-       List.fold_right
-         (fun (x, topt) e -> Location.locate ~loc (Syntax.Lambda ((x, topt), e)))
-         lst e
+  | Input.Lambda (a, e) ->
+    let ctx, lst = lambda_abstraction ctx a in
+    let e = expr ctx e in
+    List.fold_right
+      (fun (x, topt) e -> Location.locate ~loc (Syntax.Lambda ((x, topt), e)))
+      lst e
 
-    | Input.Apply (e1, e2) ->
-       let e1 = expr ctx e1
-       and e2 = expr ctx e2 in
-       Location.locate ~loc (Syntax.Apply (e1, e2))
+  | Input.Apply (e1, e2) ->
+    let e1 = expr ctx e1
+    and e2 = expr ctx e2 in
+    Location.locate ~loc (Syntax.Apply (e1, e2))
 
-    | Input.Ascribe (e, t) ->
-       let e = expr ctx e
-       and t = ty ctx t in
-       Location.locate ~loc (Syntax.Ascribe (e, t))
+  | Input.Sum (a, u) ->
+    let ctx, xts = sum_abstraction ctx a in
+    let u = ty ctx u in
+    List.fold_right
+      (fun (x, t) e -> Location.locate ~loc:t.Location.loc (Syntax.Sum ((x, t), e)))
+      xts u
+
+  | Input.Times (t1, t2) ->
+    let t1 = ty ctx t1
+    and t2 = ty ctx t2 in
+    let t2 = Syntax.shift_ty 0 1 t2 in
+    let x = Name.anonymous () in
+    Location.locate ~loc (Syntax.Sum ((x, t1), t2))
+
+
+  | Input.Pair (e1, e2) ->
+    let e1 = expr ctx e1
+    and e2 = expr ctx e2 in
+    Location.locate ~loc (Syntax.Pair (e1, e2))
+
+  | Input.Fst e ->
+    let e = expr ctx e in
+    Location.locate ~loc (Syntax.Fst e)
+
+  | Input.Snd e ->
+    let e = expr ctx e in
+    Location.locate ~loc (Syntax.Snd e)
+
+
+  | Input.Ascribe (e, t) ->
+    let e = expr ctx e
+    and t = ty ctx t in
+    Location.locate ~loc (Syntax.Ascribe (e, t))
 
 
 (** Desugar a type, which at this stage is the same as an expressions. *)
@@ -98,9 +127,9 @@ and prod_abstraction ctx a : context * (Name.ident * Syntax.ty) list =
   let rec fold ctx = function
     | [] -> ctx, []
     | (xs, t) :: lst ->
-       let ctx, xts = prod_abstraction1 ctx xs t in
-       let ctx, yts = fold ctx lst in
-       ctx, xts @ yts
+      let ctx, xts = prod_abstraction1 ctx xs t in
+      let ctx, yts = fold ctx lst in
+      ctx, xts @ yts
   in
   fold ctx a
 
@@ -109,22 +138,24 @@ and prod_abstraction1 ctx xs t : context * (Name.ident * Syntax.ty) list =
   let rec fold ctx t lst = function
     | [] -> ctx, List.rev lst
     | x :: xs ->
-       let ctx = extend x ctx
-       and lst = (x, t) :: lst
-       and t = Syntax.shift_ty 0 1 t in
-       fold ctx t lst xs
+      let ctx = extend x ctx
+      and lst = (x, t) :: lst
+      and t = Syntax.shift_ty 0 1 t in
+      fold ctx t lst xs
   in
   let t = ty ctx t in
   fold ctx t [] xs
+
+and sum_abstraction ctx a = prod_abstraction ctx a
 
 (** Desugar a lambda abstraction. *)
 and lambda_abstraction ctx a : context * (Name.ident * Syntax.ty option) list =
   let rec fold ctx = function
     | [] -> ctx, []
     | (xs, t) :: lst ->
-       let ctx, xts = lambda_abstraction1 ctx xs t in
-       let ctx, yts = fold ctx lst in
-       ctx, xts @ yts
+      let ctx, xts = lambda_abstraction1 ctx xs t in
+      let ctx, yts = fold ctx lst in
+      ctx, xts @ yts
   in
   fold ctx a
 
@@ -133,10 +164,10 @@ and lambda_abstraction1 ctx xs t : context * (Name.ident * Syntax.ty option) lis
   let rec fold ctx t lst = function
     | [] -> ctx, List.rev lst
     | x :: xs ->
-       let ctx = extend x ctx
-       and lst = (x, t) :: lst
-       and t = Syntax.shift_tyopt 0 1 t in
-       fold ctx t lst xs
+      let ctx = extend x ctx
+      and lst = (x, t) :: lst
+      and t = Syntax.shift_tyopt 0 1 t in
+      fold ctx t lst xs
   in
   let t = tyopt ctx t in
   fold ctx t [] xs
@@ -145,34 +176,34 @@ and lambda_abstraction1 ctx xs t : context * (Name.ident * Syntax.ty option) lis
 (** Desugar a toplevel. *)
 let rec toplevel ctx {Location.data=c; Location.loc=loc} =
 
-(** Desugar a non-located toplevel. *)
-let toplevel' ctx = function
+  (** Desugar a non-located toplevel. *)
+  let toplevel' ctx = function
 
     | Input.TopLoad fn ->
-       let ctx, cmds = load ctx fn in
-       ctx, Syntax.TopLoad cmds
+      let ctx, cmds = load ctx fn in
+      ctx, Syntax.TopLoad cmds
 
     | Input.TopDefinition (x, e) ->
-       begin match index x ctx with
-       | Some _ -> error ~loc (AlreadyDefined x)
-       | None ->
+      begin match index x ctx with
+        | Some _ -> error ~loc (AlreadyDefined x)
+        | None ->
           let e = expr ctx e
           and ctx = extend x ctx in
           ctx, Syntax.TopDefinition (x, e)
-       end
+      end
 
     | Input.TopCheck e ->
-       let e = expr ctx e in
-       ctx, Syntax.TopCheck e
+      let e = expr ctx e in
+      ctx, Syntax.TopCheck e
 
     | Input.TopEval e ->
-       let e = expr ctx e in
-       ctx, Syntax.TopEval e
+      let e = expr ctx e in
+      ctx, Syntax.TopEval e
 
     | Input.TopAxiom (x, t) ->
-       let t = ty ctx t in
-       let ctx = extend x ctx in
-       ctx, Syntax.TopAxiom (x, t)
+      let t = ty ctx t in
+      let ctx = extend x ctx in
+      ctx, Syntax.TopAxiom (x, t)
 
   in
   let ctx, c = toplevel' ctx c in
@@ -182,10 +213,10 @@ let toplevel' ctx = function
 and load ctx fn =
   let cmds = Lexer.read_file Parser.file fn in
   let ctx, cmds = List.fold_left
-                    (fun (ctx,cmds) cmd ->
-                      let ctx, cmd = toplevel ctx cmd in
-                      (ctx, cmd::cmds))
-                    (ctx,[]) cmds
+      (fun (ctx,cmds) cmd ->
+         let ctx, cmd = toplevel ctx cmd in
+         (ctx, cmd::cmds))
+      (ctx,[]) cmds
   in
   let cmds = List.rev cmds in
   ctx, cmds
