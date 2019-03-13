@@ -1,13 +1,15 @@
 (* Load "examples/pairing.tt". *)
+(* ./spartan.native examples/pairing.tt -V 3 *)
+(* rlwrap ./spartan.native *)
 
 Axiom A : Type.
-(* Definition B := exists x : A, Type. *)
-Axiom P : (exists x : A, Type) → Type.
-Axiom p : exists x : A, Type.
+Definition B := exists x : A, Type.
+Axiom P : B → Type.
+Axiom p : B.
 
-(* Check (fst p, snd p) : exists x : A, Type. *)
+Check (fst p, snd p) : B.
 
 Axiom u : P p. 
 
 Check u : P p.
-(* Check u: P (fst p, snd p). *)
+Check u: P ((fst p, snd p)). 

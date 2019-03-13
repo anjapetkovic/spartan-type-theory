@@ -48,9 +48,13 @@ let print_error ~penv err ppf =
 
 (** [infer ctx e] infers the type [ty] of expression [e]. It returns
     the processed expression [e] and its type [ty].  *)
-let rec infer ctx {Location.data=e'; loc} =
+let rec infer ctx ({Location.data=e'; loc} as e) =
+  (* Print.debug "? => ?"; *)
+  let (e'', ty) = infer' ctx e in
+  (* Print.debug "%t => %t" (TT.print_expr ~penv:(Context.penv ctx) e'') (TT.print_ty ~penv:(Context.penv ctx) ty); *)
+  (e'', ty)
+and infer' ctx {Location.data=e'; loc}= 
   match e' with
-
   | Syntax.Var k ->
     begin
       match Context.lookup k ctx with
@@ -96,12 +100,22 @@ let rec infer ctx {Location.data=e'; loc} =
     error ~loc CannotInferType 
 
   | Syntax.Fst e ->
-    let e1, TT.Ty t = infer ctx e in
-    TT.Fst e1, TT.Ty (TT.Fst t)
+    let e1, t = infer ctx e in
+    begin
+      match Equal.as_sum ctx t with
+      | None -> error ~loc (FunctionExpected t)
+      | Some ((x, t), u) ->
+        TT.Fst e1, t
+    end
 
   | Syntax.Snd e ->
-    let e1, TT.Ty t = infer ctx e in
-    TT.Snd e1, TT.Ty (TT.instantiate 0 (TT.Fst e1) (TT.Snd t))
+    let e1, t = infer ctx e in
+    begin
+      match Equal.as_sum ctx t with
+      | None -> error ~loc (FunctionExpected t)
+      | Some ((x, t), u) ->
+        TT.Snd e1, TT.instantiate_ty 0 e1 u
+    end
 
 
   | Syntax.Apply (e1, e2) ->
@@ -116,7 +130,9 @@ let rec infer ctx {Location.data=e'; loc} =
     end
 
   | Syntax.Ascribe (e, t) ->
+    (* print_endline "a je tip?"; *)
     let t = check_ty ctx t in
+    (* print_endline "a ima pravi tip?"; *)
     let e = check ctx e t in
     e, t
 

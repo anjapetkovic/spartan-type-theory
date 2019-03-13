@@ -16,9 +16,9 @@ let least = 0
 
 let no_parens = least
 
-let pair = no_parens
-let pair_left = no_parens
-let pair_right = no_parens
+let pair = 200
+let pair_left = pair
+let pair_right = pair
 
 let proj = no_parens
 let proj_left = no_parens
