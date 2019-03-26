@@ -26,11 +26,11 @@ let print ?(at_level=Level.no_parens) ?(max_level=Level.highest) ppf =
 (** Print a sequence with given separator and printer. *)
 let sequence print_u separator us ppf =
   match us with
-    | [] -> ()
-    | [u] -> print_u u ppf
-    | u :: ((_ :: _) as us) ->
-      print_u u ppf ;
-      List.iter (fun u -> print ppf "%s@ " separator ; print_u u ppf) us
+  | [] -> ()
+  | [u] -> print_u u ppf
+  | u :: ((_ :: _) as us) ->
+    print_u u ppf ;
+    List.iter (fun u -> print ppf "%s@ " separator ; print_u u ppf) us
 
 (** Unicode and ascii versions of symbols. *)
 
@@ -45,4 +45,5 @@ let char_equal ()  = if !Config.ascii then "==" else "≡"
 let char_vdash ()  = if !Config.ascii then "|-" else "⊢"
 let char_fst ()  = if !Config.ascii then "fst" else "fst"
 let char_snd ()  = if !Config.ascii then "snd" else "snd"
+let char_succ ()  = if !Config.ascii then "succ" else "succ"
 

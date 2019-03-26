@@ -12,6 +12,12 @@ let rec norm_expr ~strategy ctx e =
 
   | TT.Type -> e
 
+  | TT.Nat -> e
+
+  | TT.Zero -> e
+
+  | TT.Succ e' -> TT.Succ (norm_expr ~strategy ctx e')
+
   | TT.Atom x ->
     begin
       match Context.lookup_def x ctx with
@@ -87,6 +93,13 @@ let as_sum ctx t =
   | TT.Sum ((x, t), u) -> Some ((x, t), u)
   | _ -> None
 
+(** Normalize a type to Nat. *)
+let as_nat ctx t =
+  let TT.Ty t' = norm_ty ~strategy:WHNF ctx t in
+  match t' with
+  | TT.Nat -> Some TT.Nat
+  | _ -> None
+
 (** Compare expressions [e1] and [e2] at type [ty]? *)
 let rec expr ctx e1 e2 ty =
   (* Print.debug "%t =?= %t : %t" (TT.print_expr ~penv:(Context.penv ctx) e1) (TT.print_expr ~penv:(Context.penv ctx) e2) (TT.print_ty ~penv:(Context.penv ctx) ty); *)
@@ -114,6 +127,9 @@ let rec expr ctx e1 e2 ty =
     | TT.Apply _
     | TT.Fst _
     | TT.Snd _
+    | TT.Nat 
+    | TT.Zero
+    | TT.Succ _
     | TT.Bound _
     | TT.Atom _ ->
       (* Type-directed phase is done, we compare normal forms. *)
@@ -140,6 +156,12 @@ and expr_whnf ctx e1 e2 =
     assert false
 
   | TT.Atom x, TT.Atom y -> x = y
+
+  | TT.Nat, TT.Nat -> true
+
+  | TT.Zero, TT.Zero -> true
+
+  | TT.Succ e1, TT.Succ e2 -> expr_whnf ctx e1 e2
 
   | TT.Prod ((x, t1), u1), TT.Prod ((_, t2), u2)  ->
     ty ctx t1 t2 &&
@@ -201,6 +223,7 @@ and expr_whnf ctx e1 e2 =
 
   | (TT.Type | TT.Bound _ | TT.Atom _ | TT.Prod _ | TT.Sum _ ), _ -> false
   | (TT.Lambda _ | TT.Pair _ | TT.Apply _ | TT.Fst _ | TT.Snd _ ), _ -> false
+  | (TT.Nat | TT.Zero | TT.Succ _ ), _ -> false
 
 
 (** Compare two types. *)

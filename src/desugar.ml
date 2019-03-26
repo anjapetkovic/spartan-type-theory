@@ -53,6 +53,14 @@ let rec expr ctx {Location.data=e; Location.loc=loc} =
 
   | Input.Type -> Location.locate ~loc Syntax.Type
 
+  | Input.Nat -> Location.locate ~loc Syntax.Nat
+
+  | Input.Zero -> Location.locate ~loc Syntax.Zero
+
+  | Input.Succ e ->
+    let e = expr ctx e in
+    Location.locate ~loc (Syntax.Succ e)
+
   | Input.Prod (a, u) ->
     let ctx, xts = prod_abstraction ctx a in
     let u = ty ctx u in

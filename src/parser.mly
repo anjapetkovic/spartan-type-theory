@@ -14,10 +14,11 @@
 %token COMMA COLON DARROW ARROW TIMES
 
 (* Expressions *)
-%token TYPE
+%token TYPE NAT
 %token PROD SUM
 %token LAMBDA
 %token FST SND
+%token ZERO SUCC
 
 (* Toplevel commands *)
 
@@ -91,6 +92,7 @@ plain_app_term:
   | e1=app_term e2=prefix_term   { Input.Apply (e1, e2) }
   | FST e=prefix_term            { Input.Fst e }
   | SND e=prefix_term            { Input.Snd e }
+  | SUCC e=prefix_term           { Input.Succ e }
 
 prefix_term: mark_location(plain_prefix_term) { $1 }
 plain_prefix_term:
@@ -107,6 +109,8 @@ plain_simple_term:
   | LPAREN e1=term COMMA e2=term RPAREN
                                        { Input.Pair (e1, e2) }
   | TYPE                               { Input.Type }
+  | NAT                                { Input.Nat }
+  | ZERO                               { Input.Zero }
   | x=var_name                         { Input.Var x }
 
 var_name:

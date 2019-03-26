@@ -12,6 +12,9 @@ type expr =
   | Bound of index (** de Bruijn index *)
   | Atom of atom (** primitive symbol *)
   | Type (** the type of types *)
+  | Nat (** the type of Natural numbers *)
+  | Zero (** natural number zero *)
+  | Succ of expr (** successor of a natural number *)
   | Prod of (Name.ident * ty) * ty (** dependent product *)
   | Sum of (Name.ident * ty) * ty (** dependent sum *)
   | Lambda of (Name.ident * ty) * expr (** lambda abstraction *)
@@ -43,6 +46,14 @@ let rec instantiate k e e' =
   | Atom _ -> e'
 
   | Type -> e'
+
+  | Nat -> e'
+
+  | Zero -> e'
+
+  | Succ e1 ->
+    let e1 = instantiate k e e1 in
+    Succ e1
 
   | Prod ((x, t), u) ->
     let t = instantiate_ty k e t
@@ -93,6 +104,14 @@ let rec abstract ?(lvl=0) x e =
 
   | Type -> e
 
+  | Nat -> e
+
+  | Zero -> e
+
+  | Succ e1 ->
+    let e1 = abstract ~lvl x e1 in
+    Succ e1
+
   | Prod ((y, t), u) ->
     let t = abstract_ty ~lvl x t
     and u = abstract_ty ~lvl:(lvl+1) x u in
@@ -142,6 +161,9 @@ let rec occurs k = function
   | Bound j -> j = k
   | Atom _ -> false
   | Type -> false
+  | Nat -> false
+  | Zero -> false
+  | Succ e -> occurs k e
   | Prod ((_, t), u) -> occurs_ty k t || occurs_ty (k+1) u
   | Sum ((_, t), u) -> occurs_ty k t || occurs_ty (k+1) u
   | Lambda ((_, t), e) -> occurs_ty k t || occurs (k+1) e
@@ -188,6 +210,14 @@ and print_expr' ~penv ?max_level e ppf =
   | Type ->
     Format.fprintf ppf "Type"
 
+  | Nat ->
+    Format.fprintf ppf "nat"
+
+  | Zero ->
+    Format.fprintf ppf "zero"
+
+  | Succ e1 -> print_succ ?max_level ~penv e1 ppf (** broken! *)
+
   | Atom x ->
     print_atom x ppf
 
@@ -199,13 +229,13 @@ and print_expr' ~penv ?max_level e ppf =
 
   | Prod ((x, u), t) -> print_prod ?max_level ~penv ((x, u), t) ppf
 
-  | Sum ((x, u), t) -> print_sum ?max_level ~penv ((x, u), t) ppf (** broken! *)
+  | Sum ((x, u), t) -> print_sum ?max_level ~penv ((x, u), t) ppf 
 
-  | Pair (e1, e2) -> print_pair ?max_level ~penv e1 e2 ppf (** broken! *)
+  | Pair (e1, e2) -> print_pair ?max_level ~penv e1 e2 ppf 
 
-  | Fst e1 -> print_fst ?max_level ~penv e1 ppf (** broken! *)
+  | Fst e1 -> print_fst ?max_level ~penv e1 ppf 
 
-  | Snd e1 -> print_snd ?max_level ~penv e1 ppf (** broken! *)
+  | Snd e1 -> print_snd ?max_level ~penv e1 ppf 
 
 and print_ty ?max_level ~penv (Ty t) ppf = print_expr ?max_level ~penv t ppf
 
@@ -344,4 +374,9 @@ and print_fst ?max_level ~penv e ppf =
 and print_snd ?max_level ~penv e ppf =
   Print.print ppf ?max_level ~at_level:Level.app "%s %t"
     (Print.char_snd ())
+    (print_expr ~max_level:Level.app_right ~penv e)
+
+and print_succ ?max_level ~penv e ppf =
+  Print.print ppf ?max_level ~at_level:Level.app "%s %t"
+    (Print.char_succ ())
     (print_expr ~max_level:Level.app_right ~penv e)

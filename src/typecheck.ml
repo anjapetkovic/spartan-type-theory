@@ -65,6 +65,21 @@ and infer' ctx {Location.data=e'; loc}=
   | Syntax.Type ->
     TT.Type, TT.ty_Type
 
+  | Syntax.Nat ->
+    TT.Nat, TT.ty_Type
+
+  | Syntax.Zero -> 
+    TT.Zero, TT.Ty TT.Nat
+
+  | Syntax.Succ e ->
+    let e1, t = infer ctx e in
+    begin
+      match Equal.as_nat ctx t with
+      | None -> error ~loc (FunctionExpected t)
+      | Some t ->
+        TT.Succ e1, TT.Ty t
+    end
+
   | Syntax.Prod ((x, t), u) ->
     let t = check_ty ctx t in
     let x' = TT.new_atom x in
@@ -169,6 +184,9 @@ and check ctx ({Location.data=e'; loc} as e) ty =
   | Syntax.Var _
   | Syntax.Fst _
   | Syntax.Snd _
+  | Syntax.Nat
+  | Syntax.Zero
+  | Syntax.Succ _
   | Syntax.Type
   | Syntax.Ascribe _ ->
     let e, ty' = infer ctx e in

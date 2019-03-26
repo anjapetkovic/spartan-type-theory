@@ -17,7 +17,10 @@ let reserved = [
   ("exists", Parser.SUM);
   ("Σ", Parser.SUM);
   ("fst", Parser.FST) ;
-  ("snd", Parser.SND) 
+  ("snd", Parser.SND);
+  ("nat", Parser.NAT);
+  ("zero", Parser.ZERO);
+  ("succ", Parser.SUCC)
 ]
 
 let name =

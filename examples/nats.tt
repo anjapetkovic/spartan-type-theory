@@ -1,0 +1,22 @@
+(* Load "examples/nats.tt". *)
+(* ./spartan.native examples/nats.tt -V 3 *)
+(* rlwrap ./spartan.native *)
+
+
+Axiom P : nat → Type.
+Definition one := succ zero. 
+Definition two := succ one.
+Eval one.
+
+Axiom u : P two. 
+
+Check u : P two.
+Check u: P (succ (succ zero)). 
+
+Axiom A : Type.
+Definition B := exists x : A, nat.
+Axiom a : A. 
+Check (a, one) : B.
+
+Definition D := exists (x : A) (y: nat), P y. 
+Check (a, (two, u)) : D.

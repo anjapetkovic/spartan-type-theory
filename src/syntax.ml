@@ -8,6 +8,9 @@ type expr = expr' Location.located
 and expr' =
   | Var of index
   | Type
+  | Nat
+  | Zero
+  | Succ of expr
   | Prod of (Name.ident * ty) * ty
   | Sum of (Name.ident * ty) * ty
   | Lambda of (Name.ident * ty option) * expr
@@ -40,43 +43,51 @@ and shift' n k = function
 
   | Type -> Type
 
+  | Nat ->  Nat
+
+  | Zero -> Zero
+
+  | Succ e ->
+    let e = shift n k e in
+    Succ e
+
   | Prod ((x, t), u) ->
-     let t = shift_ty n k t
-     and u = shift_ty (n + 1) k u in
-     Prod ((x, t), u)
-     
+    let t = shift_ty n k t
+    and u = shift_ty (n + 1) k u in
+    Prod ((x, t), u)
+
   | Sum ((x, t), u) ->
-     let t = shift_ty n k t
-     and u = shift_ty (n + 1) k u in
-     Sum ((x, t), u)  
+    let t = shift_ty n k t
+    and u = shift_ty (n + 1) k u in
+    Sum ((x, t), u)  
 
   | Lambda ((x, topt), e) ->
-     let t = shift_tyopt n k topt
-     and e = shift (n + 1) k e in
-     Lambda ((x, t), e)
+    let t = shift_tyopt n k topt
+    and e = shift (n + 1) k e in
+    Lambda ((x, t), e)
 
   | Apply (e1, e2) ->
-     let e1 = shift n k e1
-     and e2 = shift n k e2 in
-     Apply (e1, e2)
-     
+    let e1 = shift n k e1
+    and e2 = shift n k e2 in
+    Apply (e1, e2)
+
   | Pair (e1, e2) ->
-     let e1 = shift n k e1
-     and e2 = shift n k e2 in
-     Pair (e1, e2)
-     
+    let e1 = shift n k e1
+    and e2 = shift n k e2 in
+    Pair (e1, e2)
+
   | Fst e ->
-     let e = shift n k e in
-     Fst e
-     
+    let e = shift n k e in
+    Fst e
+
   | Snd e ->
-     let e = shift n k e in
-     Snd e
+    let e = shift n k e in
+    Snd e
 
   | Ascribe (e, t) ->
-     let e = shift n k e
-     and t = shift_ty n k t in
-     Ascribe (e, t)
+    let e = shift n k e
+    and t = shift_ty n k t in
+    Ascribe (e, t)
 
 and shift_ty n k t = shift n k t
 

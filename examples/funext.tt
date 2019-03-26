@@ -4,17 +4,19 @@ Axiom A : Type.
 Axiom P : (A → A) → Type.
 Axiom f : A → A.
 
-(* Definition id := λ (A : Type) (x : A) ⇒ x. *)
+Definition id := λ (A : Type) (x : A) ⇒ x.
 
 (** Function composition. *)
-(* Definition compose := λ (A B C : Type) (g : B → C) (f : A → B) (x : A) => g (f x).*)
+Definition compose := λ (A B C : Type) (g : B → C) (f : A → B) (x : A) => g (f x).
 
 Axiom u : P f.
 
 Check u : P (λ (x : A) => f x).
 
-(* Check u : P (id (A → A) f).*)
+Check u : P (id (A → A) f).
 
-(* Check u : P (compose A A A (id A) f).*)
+Check u : P (compose A A A (id A) f).
+
+Axiom Q : forall (x: A) (y : A -> A), P y.
   
 

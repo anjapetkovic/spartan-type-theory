@@ -13,3 +13,5 @@ Axiom u : P p.
 
 Check u : P p.
 Check u: P ((fst p, snd p)). 
+
+Definition C := exists (x : A) (y : A), Type. 
