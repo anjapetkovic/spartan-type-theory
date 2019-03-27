@@ -1,4 +1,5 @@
 %{
+  let rec nest_pairs es = failwith "Anja"
 %}
 
 (* Infix operations a la OCaml *)
@@ -106,8 +107,10 @@ plain_prefix_term:
 (* simple_term : mark_location(plain_simple_term) { $1 } *)
 plain_simple_term:
   | LPAREN e=plain_term RPAREN         { e }
-  | LPAREN e1=term COMMA e2=term RPAREN
-                                       { Input.Pair (e1, e2) }
+  | LPAREN e=term COMMA es=separated_nonempty_list(COMMA, term) RPAREN
+    { nest_pairs (e :: es)
+                                         Input.Pair (e1, e2)
+    }
   | TYPE                               { Input.Type }
   | NAT                                { Input.Nat }
   | ZERO                               { Input.Zero }

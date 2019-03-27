@@ -19,4 +19,4 @@ Axiom a : A.
 Check (a, one) : B.
 
 Definition D := exists (x : A) (y: nat), P y. 
-Check (a, (two, u)) : D.
+Check (a, two, u) : D.

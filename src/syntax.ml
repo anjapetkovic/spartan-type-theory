@@ -19,6 +19,8 @@ and expr' =
   | Fst of expr
   | Snd of expr
   | Ascribe of expr * ty
+  | Constructor of Name.ident
+  | Match of expr * (Name.ident * pattern * expr)
 
 (** Types (equal to expressions at this point). *)
 and ty = expr
@@ -28,6 +30,7 @@ type toplevel = toplevel' Location.located
 and toplevel' =
   | TopLoad of toplevel list
   | TopDefinition of Name.ident * expr
+  | TopInductive of Name.ident * expr * (Name.ident * expr) list
   | TopCheck of expr
   | TopEval of expr
   | TopAxiom of Name.ident * expr
