@@ -19,6 +19,7 @@ and expr' =
   | Fst of expr
   | Snd of expr
   | Ascribe of expr * ty
+  | MatchNat of expr * expr * (Name.ident * expr)
 
 (** Types (equal to expressions at this point). *)
 and ty = expr
@@ -88,6 +89,12 @@ and shift' n k = function
     let e = shift n k e
     and t = shift_ty n k t in
     Ascribe (e, t)
+
+  | MatchNat (e, ez, (m, esuc)) ->
+    let e = shift n k e
+    and ez = shift n k ez
+    and esuc = shift (n+1) k esuc in
+    MatchNat (e, ez, (m, esuc))
 
 and shift_ty n k t = shift n k t
 

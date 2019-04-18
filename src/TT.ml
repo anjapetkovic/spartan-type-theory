@@ -15,6 +15,7 @@ type expr =
   | Nat (** the type of Natural numbers *)
   | Zero (** natural number zero *)
   | Succ of expr (** successor of a natural number *)
+  | MatchNat of expr * expr * (Name.ident * expr) (** eliminator for natural numbers *)
   | Prod of (Name.ident * ty) * ty (** dependent product *)
   | Sum of (Name.ident * ty) * ty (** dependent sum *)
   | Lambda of (Name.ident * ty) * expr (** lambda abstraction *)
@@ -54,6 +55,12 @@ let rec instantiate k e e' =
   | Succ e1 ->
     let e1 = instantiate k e e1 in
     Succ e1
+
+  | MatchNat (e1, ez, (m, esuc)) ->
+    let e1 = instantiate k e e1 
+    and ez = instantiate k e ez in
+    let esuc = instantiate (k+1) e esuc in
+    MatchNat (e1, ez, (m, esuc))
 
   | Prod ((x, t), u) ->
     let t = instantiate_ty k e t
@@ -112,6 +119,12 @@ let rec abstract ?(lvl=0) x e =
     let e1 = abstract ~lvl x e1 in
     Succ e1
 
+  | MatchNat (e1, ez, (m, esuc)) ->
+    let e1 = abstract ~lvl x e1
+    and ez = abstract ~lvl x ez in
+    let esuc = abstract ~lvl:(lvl+1) x esuc in
+    MatchNat (e1, ez, (m, esuc))
+
   | Prod ((y, t), u) ->
     let t = abstract_ty ~lvl x t
     and u = abstract_ty ~lvl:(lvl+1) x u in
@@ -164,6 +177,7 @@ let rec occurs k = function
   | Nat -> false
   | Zero -> false
   | Succ e -> occurs k e
+  | MatchNat (e1, ez, (_, esuc)) -> occurs k e1 || occurs k ez || occurs (k+1) esuc
   | Prod ((_, t), u) -> occurs_ty k t || occurs_ty (k+1) u
   | Sum ((_, t), u) -> occurs_ty k t || occurs_ty (k+1) u
   | Lambda ((_, t), e) -> occurs_ty k t || occurs (k+1) e
@@ -216,7 +230,9 @@ and print_expr' ~penv ?max_level e ppf =
   | Zero ->
     Format.fprintf ppf "zero"
 
-  | Succ e1 -> print_succ ?max_level ~penv e1 ppf (** broken! *)
+  | Succ e1 -> print_succ ?max_level ~penv e1 ppf
+
+  | MatchNat (e1, ez, (m, esuc)) -> print_induction_nat ?max_level ~penv (e1, ez, (m, esuc)) ppf
 
   | Atom x ->
     print_atom x ppf
@@ -380,3 +396,9 @@ and print_succ ?max_level ~penv e ppf =
   Print.print ppf ?max_level ~at_level:Level.app "%s %t"
     (Print.char_succ ())
     (print_expr ~max_level:Level.app_right ~penv e)
+
+and print_induction_nat ?max_level ~penv (e1, ez, (m, esuc)) ppf =
+  Print.print ppf ?max_level ~at_level:Level.app "%s %t"
+    (Print.char_succ ())
+    (print_expr ~max_level:Level.app_right ~penv e1)
+(** this is broken!!!*)

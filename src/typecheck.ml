@@ -7,6 +7,7 @@ type type_error =
   | TypeExpectedButFunction of TT.ty
   | TypeExpectedButPair of TT.ty
   | FunctionExpected of TT.ty
+  | NatExpected of TT.ty
   | CannotInferArgument of Name.ident
   | CannotInferType
 
@@ -37,6 +38,10 @@ let print_error ~penv err ppf =
 
   | FunctionExpected ty ->
     Format.fprintf ppf "this expression should be a function but has type %t"
+      (TT.print_ty ~penv ty)
+
+  | NatExpected ty ->
+    Format.fprintf ppf "this expression should be a natural number but has type %t"
       (TT.print_ty ~penv ty)
 
   | CannotInferArgument x ->
@@ -144,6 +149,25 @@ and infer' ctx {Location.data=e'; loc}=
         TT.instantiate_ty 0 e2 u
     end
 
+  | Syntax.MatchNat (e, ez, (m, esuc)) ->
+    let e1, nat = infer ctx e in
+    begin
+      match Equal.as_nat ctx nat with
+      | None -> error ~loc (NatExpected nat)
+      | Some _ ->
+        let ez1, t = infer ctx ez in
+        let m' = TT.new_atom m in
+        let ctx  = Context.extend_ident m' nat ctx in
+        let esuc, t1 = infer ctx esuc in
+        let esuc = TT.abstract m' esuc in
+        let t1 = TT.abstract_ty m' t1 in
+        let equal_types = Equal.ty ctx t t1 in
+        match equal_types with
+        | false -> error ~loc (TypeExpected (t, t1))
+        | true -> TT.MatchNat (e1, ez1, (m, esuc)), t
+    end
+
+
   | Syntax.Ascribe (e, t) ->
     (* print_endline "a je tip?"; *)
     let t = check_ty ctx t in
@@ -176,6 +200,15 @@ and check ctx ({Location.data=e'; loc} as e) ty =
         let e2' = check ctx e2 (TT.Ty (TT.instantiate 0 e1' u)) in
         TT.Pair (e1', e2')
     end
+
+  | Syntax.MatchNat (e1, ez, (m, esuc)) ->
+    let e1 = check ctx e1 (TT.Ty TT.Nat)
+    and ez = check ctx ez ty in
+    let m' = TT.new_atom m in
+    let ctx = Context.extend_ident m' (TT.Ty TT.Nat) ctx in
+    let esuc = check ctx esuc ty in (** double check esuc is ok, since m' is not instantiated? *)
+    TT.MatchNat (e1, ez, (m, esuc))
+
 
   | Syntax.Lambda ((_, Some _), _)
   | Syntax.Apply _

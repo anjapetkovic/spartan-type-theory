@@ -18,6 +18,18 @@ let rec norm_expr ~strategy ctx e =
 
   | TT.Succ e' -> TT.Succ (norm_expr ~strategy ctx e')
 
+  | TT.MatchNat (e1, ez, (m, esuc)) ->
+    let e1 = norm_expr ~strategy ctx e1
+    in
+    begin
+      match e1 with
+      | TT.Zero -> norm_expr ~strategy ctx ez
+      | TT.Succ e' -> 
+        let esuc = TT.instantiate 0 e' esuc in
+        norm_expr ~strategy ctx esuc
+      | _ -> TT.MatchNat (e1, ez, (m, esuc))
+    end
+
   | TT.Atom x ->
     begin
       match Context.lookup_def x ctx with
@@ -130,6 +142,7 @@ let rec expr ctx e1 e2 ty =
     | TT.Nat 
     | TT.Zero
     | TT.Succ _
+    | TT.MatchNat _
     | TT.Bound _
     | TT.Atom _ ->
       (* Type-directed phase is done, we compare normal forms. *)
@@ -162,6 +175,9 @@ and expr_whnf ctx e1 e2 =
   | TT.Zero, TT.Zero -> true
 
   | TT.Succ e1, TT.Succ e2 -> expr_whnf ctx e1 e2
+
+  | TT.MatchNat (e1, ez, (m, esuc)), TT.MatchNat (e1', ez', (m', esuc')) ->
+    expr ctx e1 e1' (TT.Ty TT.Nat) 
 
   | TT.Prod ((x, t1), u1), TT.Prod ((_, t2), u2)  ->
     ty ctx t1 t2 &&
@@ -223,7 +239,7 @@ and expr_whnf ctx e1 e2 =
 
   | (TT.Type | TT.Bound _ | TT.Atom _ | TT.Prod _ | TT.Sum _ ), _ -> false
   | (TT.Lambda _ | TT.Pair _ | TT.Apply _ | TT.Fst _ | TT.Snd _ ), _ -> false
-  | (TT.Nat | TT.Zero | TT.Succ _ ), _ -> false
+  | (TT.Nat | TT.Zero | TT.Succ _ | TT.MatchNat _ ), _ -> false
 
 
 (** Compare two types. *)
