@@ -1,13 +1,25 @@
 (** Concrete syntax as parsed by the parser. *)
 
+(* Patterns *)
+
+type pattern = plain_pattern Location.located
+
+and plain_pattern =
+  | PVar of Name.ident
+  | PSucc of Name.ident
+  | PZero
+
+
 (** Parsed expression. *)
-type expr = expr' Location.located
+and expr = expr' Location.located
 and expr' =
   | Var of Name.ident
   | Type
   | Nat
   | Zero
   | Succ of expr
+  (* | Match of expr * (match_case list) *)
+  | MatchNat of expr * expr * (Name.ident * expr)
   | Prod of (Name.ident list * ty) list * ty
   | Lambda of (Name.ident list * ty option) list * ty
   | Apply of expr * expr
@@ -21,6 +33,8 @@ and expr' =
 
 (** Parsed type (equal to expression). *)
 and ty = expr
+
+and match_case = pattern * expr
 
 (** Parsed top-level command. *)
 type toplevel = toplevel' Location.located

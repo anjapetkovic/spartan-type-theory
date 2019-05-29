@@ -61,6 +61,18 @@ let rec expr ctx {Location.data=e; Location.loc=loc} =
     let e = expr ctx e in
     Location.locate ~loc (Syntax.Succ e)
 
+  (* |Input.Match (e, patterns) -> 
+     let e1 = expr ctx e
+     and ez, (m, esuc) = desugar_pattern ctx patterns in
+     Location.locate ~loc (Syntax.MatchNat (e1, ez, (m, esuc))) *)
+
+  | Input.MatchNat (e1, ez, (m, esuc)) ->
+    let e1 = expr ctx e1 
+    and ez = expr ctx ez 
+    and ctx = extend m ctx in 
+    let esuc = expr ctx esuc in
+    Location.locate ~loc (Syntax.MatchNat (e1, ez, (m, esuc)))
+
   | Input.Prod (a, u) ->
     let ctx, xts = prod_abstraction ctx a in
     let u = ty ctx u in

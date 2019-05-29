@@ -54,7 +54,7 @@ let print_error ~penv err ppf =
 (** [infer ctx e] infers the type [ty] of expression [e]. It returns
     the processed expression [e] and its type [ty].  *)
 let rec infer ctx ({Location.data=e'; loc} as e) =
-  (* Print.debug "? => ?"; *)
+  Print.debug "%t ? => ?" (Context.print_context ctx);
   let (e'', ty) = infer' ctx e in
   (* Print.debug "%t => %t" (TT.print_expr ~penv:(Context.penv ctx) e'') (TT.print_ty ~penv:(Context.penv ctx) ty); *)
   (e'', ty)
@@ -62,6 +62,7 @@ and infer' ctx {Location.data=e'; loc}=
   match e' with
   | Syntax.Var k ->
     begin
+      Print.debug "%d" (k);
       match Context.lookup k ctx with
       | None -> error ~loc (InvalidIndex k)
       | Some (a, t) -> TT.Atom a, t
@@ -78,9 +79,10 @@ and infer' ctx {Location.data=e'; loc}=
 
   | Syntax.Succ e ->
     let e1, t = infer ctx e in
+    Print.debug "%t : %t" (TT.print_expr ~penv:(Context.penv ctx) e1)  (TT.print_ty ~penv:(Context.penv ctx) t);
     begin
       match Equal.as_nat ctx t with
-      | None -> error ~loc (FunctionExpected t)
+      | None -> error ~loc (NatExpected t)
       | Some t ->
         TT.Succ e1, TT.Ty t
     end
@@ -154,17 +156,15 @@ and infer' ctx {Location.data=e'; loc}=
     begin
       match Equal.as_nat ctx nat with
       | None -> error ~loc (NatExpected nat)
-      | Some _ ->
+      | Some nat1 ->
         let ez1, t = infer ctx ez in
         let m' = TT.new_atom m in
-        let ctx  = Context.extend_ident m' nat ctx in
-        let esuc, t1 = infer ctx esuc in
+        let ctx'  = Context.extend_ident m' (TT.Ty nat1) ctx in
+        Print.debug "kaj je esuc?";
+        let esuc = check ctx' esuc t in
+        Print.debug "imamo esuc!";
         let esuc = TT.abstract m' esuc in
-        let t1 = TT.abstract_ty m' t1 in
-        let equal_types = Equal.ty ctx t t1 in
-        match equal_types with
-        | false -> error ~loc (TypeExpected (t, t1))
-        | true -> TT.MatchNat (e1, ez1, (m, esuc)), t
+        TT.MatchNat (e1, ez1, (m, esuc)), t
     end
 
 

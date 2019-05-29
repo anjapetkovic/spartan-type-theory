@@ -46,4 +46,7 @@ let char_vdash ()  = if !Config.ascii then "|-" else "⊢"
 let char_fst ()  = if !Config.ascii then "fst" else "fst"
 let char_snd ()  = if !Config.ascii then "snd" else "snd"
 let char_succ ()  = if !Config.ascii then "succ" else "succ"
+let char_match () = if !Config.ascii then "match" else "match"
+let char_pipe () = if !Config.ascii then "|" else "|"
+let char_with () = if !Config.ascii then "with" else "with"
 

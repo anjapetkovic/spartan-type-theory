@@ -20,7 +20,9 @@ let reserved = [
   ("snd", Parser.SND);
   ("nat", Parser.NAT);
   ("zero", Parser.ZERO);
-  ("succ", Parser.SUCC)
+  ("succ", Parser.SUCC);
+  ("match", Parser.MATCH);
+  ("with", Parser.WITH)
 ]
 
 let name =
@@ -37,7 +39,7 @@ let numeral = [%sedlex.regexp? Opt '-', Plus digit]
 let symbolchar = [%sedlex.regexp?  ('!' | '$' | '%' | '&' | '*' | '+' | '-' | '.' | '/' | ':' | '<' | '=' | '>' | '?' | '@' | '^' | '|' | '~')]
 
 let prefixop = [%sedlex.regexp? ('~' | '?' | '!'), Star symbolchar ]
-let infixop0 = [%sedlex.regexp? ('=' | '<' | '>' | '|' | '&' | '$'), Star symbolchar]
+let infixop0 = [%sedlex.regexp? ('=' | '<' | '>' | '&' | '$'), Star symbolchar]
 let infixop1 = [%sedlex.regexp? ('@' | '^'), Star symbolchar ]
 let infixop2 = [%sedlex.regexp? ('+' | '-'), Star symbolchar ]
 let infixop3 = [%sedlex.regexp? ('*' | '/' | '%'), Star symbolchar ]
@@ -90,6 +92,7 @@ and token_aux ({ Ulexbuf.stream;_ } as lexbuf) =
   | "=>" | 8658 | 10233      -> f (); Parser.DARROW
   | "->" | 8594 | 10230      -> f (); Parser.ARROW
   | ":="                     -> f (); Parser.COLONEQ
+  | '|'                      -> f (); Parser.PIPE
 
   (* We record the location of operators here because menhir cannot handle %infix and
      mark_location simultaneously, it seems. *)
@@ -160,7 +163,7 @@ let run
   | Parser.Error ->
     let w = Ulexbuf.lexeme lexbuf in
     let loc = loc_of lexbuf in
-    Ulexbuf.error ~loc (Ulexbuf.Unexpected w)
+    Ulexbuf.error ~loc (Ulexbuf.Unexpected (w))
   | Sedlexing.MalFormed ->
     let loc = loc_of lexbuf in
     Ulexbuf.error ~loc Ulexbuf.MalformedUTF8
