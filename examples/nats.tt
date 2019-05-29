@@ -20,3 +20,25 @@ Check (a, one) : B.
 
 Definition D := exists (x : A) (y: nat), P y. 
 Check (a, (two, u)) : D.
+
+Axiom G : Type.
+Axiom Q: (nat -> G -> nat) -> Type.
+
+Definition differentOne := match zero with zero -> succ zero | succ m -> succ m.
+Check differentOne.
+Eval differentOne.
+Definition testFunction1 := fun (s : nat) => match s with zero -> fun t : G => zero | succ m -> (fun t : G => ((fun z : nat => z) m)).
+Definition testFunction2 := fun s : nat => match s with zero -> fun t : G => zero | succ m -> fun t : G => m.
+
+Axiom g : G.
+Eval testFunction1 two g.
+Eval testFunction2 two g.
+
+Axiom n: nat.
+Axiom v : P (testFunction1 (succ n) g).
+Check v: P (testFunction2 (succ n) g).
+Check testFunction1.
+
+
+
+

@@ -19,6 +19,7 @@
 %token LAMBDA
 %token FST SND
 %token ZERO SUCC
+%token MATCH WITH PIPE
 
 (* Toplevel commands *)
 
@@ -75,6 +76,8 @@ plain_term:
   | e1=infix_term TIMES e2=term                 { Input.Times (e1, e2) }
   | LAMBDA a=lambda_abstraction DARROW e=term   { Input.Lambda (a, e) }
   | e=infix_term COLON t=term                   { Input.Ascribe (e, t) }
+  | MATCH e=term WITH ZERO ARROW e1=term PIPE SUCC x=var_name ARROW e2=term
+                                                { Input.MatchNat (e, e1, (x, e2)) }
 
 infix_term: mark_location(plain_infix_term) { $1 }
 plain_infix_term:
