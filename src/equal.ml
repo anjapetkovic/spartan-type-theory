@@ -12,6 +12,8 @@ let rec norm_expr ~strategy ctx e =
 
   | TT.Type -> e
 
+  | TT.Unknown -> e
+
   | TT.Nat -> e
 
   | TT.Zero -> e
@@ -135,6 +137,7 @@ let rec expr ctx e1 e2 ty =
       (* Compare componentwise use Fst and Snd *)
       (expr ctx (TT.Fst e1) (TT.Fst e2) t) && (expr ctx (TT.Snd e1) (TT.Snd e2)  (TT.instantiate_ty 0 (TT.Fst e1) u))
 
+    | TT.Unknown
     | TT.Type
     | TT.Apply _
     | TT.Fst _
@@ -148,7 +151,7 @@ let rec expr ctx e1 e2 ty =
       (* Type-directed phase is done, we compare normal forms. *)
       let e1 = norm_expr ~strategy:WHNF ctx e1
       and e2 = norm_expr ~strategy:WHNF ctx e2 in
-      expr_whnf ctx e1 e2
+      expr_whnf ctx e1 e2 ty
 
     | TT.Pair _
     | TT.Lambda _ ->
@@ -156,12 +159,16 @@ let rec expr ctx e1 e2 ty =
       assert false
   end
 
-(** Structurally compare weak head-normal expressions [e1] and [e2]. *)
-and expr_whnf ctx e1 e2 =
+(** Structurally compare weak head-normal expressions [e1] and [e2] at type [ty'] *)
+and expr_whnf ctx e1 e2 ty' =
   (* Print.debug "%t =whnf= %t" (TT.print_expr ~penv:(Context.penv ctx) e1) (TT.print_expr ~penv:(Context.penv ctx) e2); *)
   match e1, e2 with
 
   | TT.Type, TT.Type -> true
+
+  | TT.Unknown, _ -> true
+
+  | _ , TT.Unknown -> true
 
   | TT.Bound k1, TT.Bound k2 ->
     (* We should never be in a situation where we compare bound variables,
@@ -174,10 +181,17 @@ and expr_whnf ctx e1 e2 =
 
   | TT.Zero, TT.Zero -> true
 
-  | TT.Succ e1, TT.Succ e2 -> expr_whnf ctx e1 e2
+  | TT.Succ e1, TT.Succ e2 -> expr_whnf ctx e1 e2 ty'
 
   | TT.MatchNat (e1, ez, (m, esuc)), TT.MatchNat (e1', ez', (m', esuc')) ->
-    expr ctx e1 e1' (TT.Ty TT.Nat) 
+    expr ctx e1 e1' (TT.Ty TT.Nat) && expr ctx ez ez' ty' &&
+    begin
+      let m1 = TT.new_atom m in
+      let ctx = Context.extend_ident m1 (TT.Ty TT.Nat) ctx
+      and esuc1 = TT.unabstract m1 esuc
+      and esuc2 = TT.unabstract m1 esuc' in
+      expr ctx esuc1 esuc2 ty'
+    end
 
   | TT.Prod ((x, t1), u1), TT.Prod ((_, t2), u2)  ->
     ty ctx t1 t2 &&
@@ -230,12 +244,12 @@ and expr_whnf ctx e1 e2 =
   | TT.Fst e1, TT.Fst e2 ->
     (* Since e1 and e2 are normalised, we can only get to atoms or applications. Atoms don't care about 
        the types, applications compute them from the context *)
-    expr_whnf ctx e1 e2 
+    expr_whnf ctx e1 e2 (TT.Ty TT.Unknown)
 
   | TT.Snd e1, TT.Snd e2 ->
     (* Since e1 and e2 are normalised, we can only get to atoms or applications. Atoms don't care about 
        the types, applications compute them from the context *)
-    expr_whnf ctx e1 e2
+    expr_whnf ctx e1 e2 (TT.Ty TT.Unknown)
 
   | (TT.Type | TT.Bound _ | TT.Atom _ | TT.Prod _ | TT.Sum _ ), _ -> false
   | (TT.Lambda _ | TT.Pair _ | TT.Apply _ | TT.Fst _ | TT.Snd _ ), _ -> false
