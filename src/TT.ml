@@ -23,6 +23,7 @@ type expr =
   | Pair of expr * expr (** dependent pair *)
   | Fst of expr (** first projection of a pair *)
   | Snd of expr (** second projection of a pair *)
+  | Unknown (** unknown type, just internal for equality checking *)
 
 (** Type *)
 and ty = Ty of expr
@@ -45,6 +46,8 @@ let rec instantiate k e e' =
     if j = k then e else e'
 
   | Atom _ -> e'
+
+  | Unknown -> e'
 
   | Type -> e'
 
@@ -111,6 +114,8 @@ let rec abstract ?(lvl=0) x e =
 
   | Type -> e
 
+  | Unknown -> e
+
   | Nat -> e
 
   | Zero -> e
@@ -173,6 +178,7 @@ let unabstract_ty a (Ty t) = Ty (instantiate 0 (Atom a) t)
 let rec occurs k = function
   | Bound j -> j = k
   | Atom _ -> false
+  | Unknown -> false
   | Type -> false
   | Nat -> false
   | Zero -> false
@@ -224,6 +230,9 @@ and print_expr' ~penv ?max_level e ppf =
   | Type ->
     Format.fprintf ppf "Type"
 
+  | Unknown ->
+    Format.fprintf ppf "unknown"
+
   | Nat ->
     Format.fprintf ppf "nat"
 
@@ -232,7 +241,7 @@ and print_expr' ~penv ?max_level e ppf =
 
   | Succ e1 -> print_succ ?max_level ~penv e1 ppf
 
-  | MatchNat (e1, ez, (m, esuc)) -> print_induction_nat ?max_level ~penv (e1, ez, (m, esuc)) ppf
+  | MatchNat (e1, ez, (m, esuc)) -> print_match_nat ?max_level ~penv (e1, ez, (m, esuc)) ppf
 
   | Atom x ->
     print_atom x ppf
@@ -397,8 +406,16 @@ and print_succ ?max_level ~penv e ppf =
     (Print.char_succ ())
     (print_expr ~max_level:Level.app_right ~penv e)
 
-and print_induction_nat ?max_level ~penv (e1, ez, (m, esuc)) ppf =
-  Print.print ppf ?max_level ~at_level:Level.app "%s %t"
-    (Print.char_succ ())
+and print_match_nat ?max_level ~penv (e1, ez, (m, esuc)) ppf =
+  Print.print ppf ?max_level ~at_level:Level.app  "@[<hov>%s %t %s@ zero %s %t@ %s %s %t@ %s %t@]"
+    (Print.char_match ())
     (print_expr ~max_level:Level.app_right ~penv e1)
-(** this is broken!!!*)
+    (Print.char_with ())
+    (Print.char_arrow ())
+    (print_expr ~max_level:Level.app_right ~penv ez)
+    (Print.char_pipe ())
+    (Print.char_succ ())
+    (Name.print_ident m)
+    (Print.char_arrow ())
+    (print_expr ~max_level:Level.app_right ~penv esuc)
+
