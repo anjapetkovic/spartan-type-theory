@@ -46,3 +46,9 @@ let lookup_def a {defs; _} =
     let e = List.assoc a defs in
     Some e
   with Not_found -> None
+
+let print_entry (a, ty) ppf =
+  Print.print ppf "%t : %t" (TT.print_atom a) (TT.print_ty ~penv:[] ty)
+
+let print_context ctx ppf =
+  Print.sequence print_entry ", " ctx.idents ppf
