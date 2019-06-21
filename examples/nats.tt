@@ -36,7 +36,7 @@ Eval testFunction2 two g.
 
 Axiom n: nat.
 Axiom v : P (testFunction1 (succ n) g).
-Check v: P (testFunction2 (succ n) g).
+Check v : P (testFunction2 (succ n) g).
 Check testFunction1.
 
 
