@@ -18,6 +18,8 @@ The dependent type theory `spartan` has the following ingredients:
 * First projection written as `fst e`.
 * Second projection written as `snd e`.
 * Type ascription written as `e : T`.
+* Natural numbers type `nat : Type` with `zero` and `succ n`.
+* Eliminator for the natural numbers used as `match expr with zero -> e₁ | succ m -> e₂`.
 
 Top-level commands:
 
