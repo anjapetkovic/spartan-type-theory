@@ -20,6 +20,9 @@ and expr' =
   | Snd of expr
   | Ascribe of expr * ty
   | MatchNat of expr * expr * (Name.ident * expr)
+  | Constructor of Name.ident * expr
+  | Match of expr * ((Name.ident * Name.ident * expr) list)
+  (* identifier name, argument variable, expression to do *)
 
 (** Types (equal to expressions at this point). *)
 and ty = expr
@@ -32,6 +35,8 @@ and toplevel' =
   | TopCheck of expr
   | TopEval of expr
   | TopAxiom of Name.ident * expr
+  | TopTyDef of (Name.ident * ((Name.ident * expr) list)) list
+  (* identifier of the name of the type, names of constructors, what contructors are of, list because we can have simultaneous definitions  *)
 
 (** Shift all indices greter than or equal to [n] by [k]. *)
 let rec shift n k {Location.data=e'; loc} =
@@ -95,6 +100,19 @@ and shift' n k = function
     and ez = shift n k ez
     and esuc = shift (n+1) k esuc in
     MatchNat (e, ez, (m, esuc))
+
+  | Constructor (x,e) -> 
+    let e1 = shift (n+1) k e in
+    Constructor (x, e1)
+
+  | Match (e , match_list) ->
+    let e = shift n k e in
+    let rec fold acc = function
+      | [] -> acc
+      | (x, y, e') :: matc_expr_list ->
+        let e1 = shift (n + 1) k e' in
+        fold ((x, y, e1) :: acc) matc_expr_list in
+    Match (e, (fold [] match_list))
 
 and shift_ty n k t = shift n k t
 

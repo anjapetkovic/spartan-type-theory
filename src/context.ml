@@ -6,15 +6,19 @@ type entry = TT.atom * TT.ty
 (** Each definitiona equality maps an atom to an expression. *)
 type definition = TT.atom * TT.expr
 
+(** Each type constructor definition maps an atom to a type of the argument and a type of the constructor. *)
+type constructor_type = Name.ident * (TT.ty * TT.ty)
+
 (** A typing context is a list of known identifiers and definitional equalities. *)
 type context =
   {
     idents : entry list ;
-    defs : definition list
+    defs : definition list;
+    types : constructor_type list
   }
 
 (** The initial, empty typing context. *)
-let initial = { idents = [] ; defs = [] }
+let initial = { idents = [] ; defs = []; types = [] }
 
 (** The list of names which should not be used for printing bound variables. *)
 let penv {idents; _} = List.map (fun ((x, _), _) -> x) idents
@@ -24,6 +28,9 @@ let extend_ident a t ctx = { ctx with idents = (a, t) :: ctx.idents }
 
 (** Extend the context with a definitional equality. *)
 let extend_def a e ctx = { ctx with defs = (a, e) :: ctx.defs }
+
+(** Extend the context with a definitional equality. *)
+let extend_types a e1 e2 ctx = { ctx with types = (a, (e1, e2)) :: ctx.types }
 
 (** Lookup the type and value of the given de Bruijn index [k] *)
 let lookup k {idents; _} =
@@ -44,6 +51,13 @@ let lookup_atom_ty a {idents; _} =
 let lookup_def a {defs; _} =
   try
     let e = List.assoc a defs in
+    Some e
+  with Not_found -> None
+
+(** Lookup the type of the given constructor atom [a]. *)
+let lookup_types a {types; _} =
+  try
+    let e = List.assoc a types in
     Some e
   with Not_found -> None
 

@@ -66,3 +66,6 @@ let ml_handler_left = ml_arr_left
 let ml_handler_right = ml_arr_right
 
 let ml_forall_r = highest
+
+let match_constructor = 100
+let match_case = match_constructor + 1  

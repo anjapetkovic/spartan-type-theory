@@ -24,6 +24,8 @@ type expr =
   | Fst of expr (** first projection of a pair *)
   | Snd of expr (** second projection of a pair *)
   | Unknown (** unknown type, just internal for equality checking *)
+  | Constructor of Name.ident * expr (** constructor of an inductive type *)
+  | Match of expr * ((Name.ident * Name.ident * expr) list) (** match eliminator for the inductive type constructors. Its form is identifier name, argument variable, expression to do *)
 
 (** Type *)
 and ty = Ty of expr
@@ -98,6 +100,17 @@ let rec instantiate k e e' =
     let e1 = instantiate k e e1 in 
     Snd e1
 
+  | Constructor (x, e1) -> 
+    let e2 = instantiate (k+1) e e1 in
+    Constructor (x, e2)
+
+  | Match (e1, match_list) ->
+    let e1 = instantiate k e e1 in
+    let rec fold acc = function
+      | [] -> List.rev acc
+      | (x, y, e2) :: match_expr_list -> fold ((x, y, instantiate (k+1) e e2) :: acc) match_expr_list in
+    Match (e1, (fold [] match_list))
+
 
 (** [instantiate k e t] instantiates deBruijn index [k] with [e] in type [t]. *)
 and instantiate_ty k e (Ty t) =
@@ -163,6 +176,17 @@ let rec abstract ?(lvl=0) x e =
     let e1 = abstract ~lvl x e1 in 
     Snd e1
 
+  | Constructor (y, e1) -> 
+    let e1 = abstract ~lvl:(lvl+1) x e in
+    Constructor (y, e1)
+
+  | Match (e1, match_list) -> 
+    let e1 = abstract ~lvl x e1 in
+    let rec fold acc = function
+      | [] -> List.rev acc
+      | (z, y, e2) :: match_expr_list -> fold ((z, y, abstract ~lvl:(lvl+1) x e2) :: acc) match_expr_list in
+    Match (e1, (fold [] match_list))
+
 (** [abstract_ty ~lvl x t] abstracts atom [x] into bound index [lvl] in type [t]. *)
 and abstract_ty ?(lvl=0) x (Ty t) =
   let t = abstract ~lvl x t in
@@ -191,6 +215,10 @@ let rec occurs k = function
   | Pair (e1, e2) -> occurs k e1 || occurs k e2
   | Fst e -> occurs k e
   | Snd e -> occurs k e
+  | Constructor (_, e) -> occurs k e
+  | Match (e1, match_list) -> 
+    let aux b (_, _, e) = (occurs k e) || b
+    in occurs k e1 || List.fold_left aux false match_list
 
 (** [occurs_ty k t] returns [true] when de Bruijn index [k] occurs in type [t]. *)
 and occurs_ty k (Ty t) = occurs k t
@@ -261,6 +289,10 @@ and print_expr' ~penv ?max_level e ppf =
   | Fst e1 -> print_fst ?max_level ~penv e1 ppf 
 
   | Snd e1 -> print_snd ?max_level ~penv e1 ppf 
+
+  | Constructor (x, e1) -> print_constructor ?max_level ~penv x e1 ppf
+
+  | Match (e1,match_list) -> print_match ?max_level ~penv e1 match_list ppf
 
 and print_ty ?max_level ~penv (Ty t) ppf = print_expr ?max_level ~penv t ppf
 
@@ -418,4 +450,27 @@ and print_match_nat ?max_level ~penv (e1, ez, (m, esuc)) ppf =
     (Name.print_ident m)
     (Print.char_arrow ())
     (print_expr ~max_level:Level.app_right ~penv esuc)
+
+(** This may be broken! *)
+and print_constructor ?max_level ~penv x e ppf =
+  Name.print_ident x ppf;
+  print_expr ?max_level ~penv e ppf
+
+and print_match_case ?max_level ~penv (x, y, e) ppf = 
+  Print.print ppf ?max_level ~at_level:Level.match_case  "@%t %t %s %t\n" 
+    (Name.print_ident x) 
+    (Name.print_ident y)
+    (Print.char_arrow ())
+    (print_expr ~max_level:Level.match_constructor ~penv e)
+
+and print_match ?max_level ~penv e1 match_list ppf =
+  Print.print ppf ?max_level ~at_level:Level.match_constructor  "@[<hov>%s %t %s@ %s %t@\n]"
+    (Print.char_match ())
+    (print_expr ~max_level:Level.match_constructor ~penv e1)
+    (Print.char_with ())
+    (Print.char_pipe ())
+    (Print.sequence (print_match_case ~penv ?max_level) (Print.char_pipe ()) match_list)
+
+(* List.fold_left (fun _ (x, y, e) -> print_expr ?max_level ~penv e ppf) () match_list *)
+
 

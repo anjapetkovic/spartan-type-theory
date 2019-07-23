@@ -18,6 +18,8 @@ The dependent type theory `spartan` has the following ingredients:
 * First projection written as `fst e`.
 * Second projection written as `snd e`.
 * Type ascription written as `e : T`.
+* Constructors written as `constr constr_name e`.
+* Match statements written as `match e with | constructor var -> e1 | ... .`.
 
 Top-level commands:
 
@@ -26,6 +28,7 @@ Top-level commands:
 * `Check e.` -- print the type of `e`
 * `Eval e.` -- evaluate `e` a la call-by-value
 * `Load "⟨file⟩".` -- load a file
+* `type ty_name = | Constructor_name of ty_constr | ... and ty_name1 = | ... .` -- inductive type
 
 ## Prerequisites
 

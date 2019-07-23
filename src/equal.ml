@@ -88,6 +88,27 @@ let rec norm_expr ~strategy ctx e =
       | _ -> TT.Snd e'
     end
 
+  | TT.Constructor (x, e') -> 
+    begin
+      match strategy with
+      | CBV -> TT.Constructor (x, norm_expr ~strategy ctx e') (* is context here ok?*)
+      | WHNF -> e
+    end
+
+  | TT.Match (e', match_list) -> 
+    let e' = norm_expr ~strategy ctx e' in
+    match e' with 
+    | TT.Constructor (x', e1') ->
+      let rec find_matching x e1 (match_expressions_list: (Name.ident * Name.ident * TT.expr) list) =
+        begin
+          match match_expressions_list with
+          | [] -> failwith "unknown constructor for this match" (* make this an internal error meesage*)
+          | (constr_name, y, e2) :: mexs -> if x = constr_name then (let e2' = TT.instantiate 0 e1 e2 in norm_expr ~strategy ctx e2') else find_matching x e1 mexs
+        end in
+      find_matching x' e1' match_list
+    | _ -> TT.Match (e', match_list)
+
+
 (** Normalize a type *)
 let norm_ty ~strategy ctx (TT.Ty ty) =
   let ty = norm_expr ~strategy ctx ty in
@@ -143,9 +164,8 @@ let rec expr ctx e1 e2 ty =
     | TT.Fst _
     | TT.Snd _
     | TT.Nat 
-    | TT.Zero
-    | TT.Succ _
     | TT.MatchNat _
+    | TT.Match _
     | TT.Bound _
     | TT.Atom _ ->
       (* Type-directed phase is done, we compare normal forms. *)
@@ -153,6 +173,9 @@ let rec expr ctx e1 e2 ty =
       and e2 = norm_expr ~strategy:WHNF ctx e2 in
       expr_whnf ctx e1 e2 ty
 
+    | TT.Zero
+    | TT.Succ _
+    | TT.Constructor _
     | TT.Pair _
     | TT.Lambda _ ->
       (* A type should never normalize to an abstraction *)
@@ -251,9 +274,57 @@ and expr_whnf ctx e1 e2 ty' =
        the types, applications compute them from the context *)
     expr_whnf ctx e1 e2 (TT.Ty TT.Unknown)
 
+  | TT.Constructor (x, e1'), TT.Constructor (y, e2') -> 
+    if x <> y then false else
+      let ty'' = Context.lookup_types x ctx in
+      begin 
+        match ty'' with
+        | Some (t, _) -> expr ctx e1' e2' t
+        | None -> expr ctx e1' e2' (TT.Ty TT.Unknown)
+      end
+
+  | TT.Match (e1', match_list1) , TT.Match (e2', match_list2) -> 
+    begin (* first figure out the type of matched expression *)
+      match match_list1 with
+      | [] -> assert false (* we should not have an empty list for match *)
+      | (constr_name, _var, _e3) :: _match_rest -> 
+        let ty1 = Context.lookup_types constr_name ctx in
+        (match ty1 with
+         | None -> expr ctx e1' e2' (TT.Ty TT.Unknown)
+         | Some (t,_) -> expr ctx e1' e2' t)
+    end
+    && 
+    let rec find_constructors (constructor, var, e3) match_list = 
+      begin
+        match match_list with
+        | [] -> false
+        | (constructor1, var1, e4) :: match_rest -> if (constructor1 = constructor) then 
+            let a = TT.new_atom var1 in 
+            let ty_atom = Context.lookup_types constructor1 ctx in 
+            match ty_atom with
+            | None -> assert false
+            | Some (t1, _) -> let ctx = Context.extend_ident a t1 ctx in
+              expr ctx e3 e4 ty' else 
+            find_constructors (constructor, var, e3) match_rest
+      end in
+    List.fold_left (fun b constr -> b && (find_constructors constr match_list2)) true match_list1
+
+
+  (* let t = Context.lookup_types con
+      expr ctx e1' e2' (TT.Ty TT.Nat) && expr ctx ez ez' ty' &&
+          begin
+            let m1 = TT.new_atom m in
+            let ctx = Context.extend_ident m1 (TT.Ty TT.Nat) ctx
+            and esuc1 = TT.unabstract m1 esuc
+            and esuc2 = TT.unabstract m1 esuc' in
+            expr ctx esuc1 esuc2 ty'
+          end *)
+
+
   | (TT.Type | TT.Bound _ | TT.Atom _ | TT.Prod _ | TT.Sum _ ), _ -> false
   | (TT.Lambda _ | TT.Pair _ | TT.Apply _ | TT.Fst _ | TT.Snd _ ), _ -> false
   | (TT.Nat | TT.Zero | TT.Succ _ | TT.MatchNat _ ), _ -> false
+  | (TT.Constructor _ | TT.Match _ ), _ -> false
 
 
 (** Compare two types. *)

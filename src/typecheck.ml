@@ -3,6 +3,7 @@
 (** Type errors *)
 type type_error =
   | InvalidIndex of int
+  | InvalidIdent of Name.ident
   | TypeExpected of TT.ty * TT.ty
   | TypeExpectedButFunction of TT.ty
   | TypeExpectedButPair of TT.ty
@@ -22,6 +23,8 @@ let print_error ~penv err ppf =
   match err with
 
   | InvalidIndex k -> Format.fprintf ppf "invalid de Bruijn index %d, please report" k
+
+  | InvalidIdent ident_name -> Format.fprintf ppf "invalid identifier %t, please report" (Name.print_ident ident_name)
 
   | TypeExpected (ty_expected, ty_actual) ->
     Format.fprintf ppf "this expression should have type %t but has type %t"
@@ -175,6 +178,43 @@ and infer' ctx {Location.data=e'; loc}=
     let e = check ctx e t in
     e, t
 
+  | Syntax.Constructor (constr_name, e1) -> 
+    begin
+      match Context.lookup_types constr_name ctx with
+      | None -> error ~loc (InvalidIdent constr_name)
+      | Some (t, arg_ty) -> 
+        let e1' = check ctx e1 arg_ty in 
+        (TT.Constructor (constr_name, e1'), t)
+    end
+
+  | Syntax.Match (e1, match_list) -> 
+    let e1, ty_expr = infer ctx e1 in
+    begin 
+      match match_list with
+      | [] -> error ~loc CannotInferType
+      | (constr_name, arg_name, e):: _ -> 
+        let ty_match' = Context.lookup_types constr_name ctx in
+        match ty_match' with
+        | None -> error ~loc CannotInferType
+        | Some (_ty_arg, ty_match) -> 
+          let rec check_match_list_types acc = function
+            | [] -> acc
+            | (constr_name1, var_name, e2) :: match_list' ->
+              let ty_constr' = Context.lookup_types constr_name1 ctx in
+              match ty_constr' with
+              | None -> error ~loc CannotInferType
+              | Some (ty_arg', ty_constr) -> 
+                if ty_constr <> ty_match then (error ~loc (TypeExpected (ty_match, ty_constr))) else
+                  let var = TT.new_atom var_name in 
+                  let ctx' = Context.extend_ident var ty_arg' ctx in
+                  let e2 = check ctx' e2 ty_arg' in
+                  let e2 = TT.abstract var e2 in
+                  check_match_list_types ((constr_name1, var_name, e2)::acc) match_list' in
+          let new_match_list = check_match_list_types [] match_list in
+          TT.Match (e1, new_match_list), ty_match
+    end
+
+
 (** [check ctx e ty] checks that [e] has type [ty] in context [ctx].
     It returns the processed expression [e]. *)
 and check ctx ({Location.data=e'; loc} as e) ty =
@@ -220,6 +260,8 @@ and check ctx ({Location.data=e'; loc} as e) ty =
   | Syntax.Nat
   | Syntax.Zero
   | Syntax.Succ _
+  | Syntax.Constructor _
+  | Syntax.Match _
   | Syntax.Type
   | Syntax.Ascribe _ ->
     let e, ty' = infer ctx e in
@@ -275,6 +317,25 @@ and toplevel' ~quiet ctx = function
     let ctx = Context.extend_ident x' ty ctx in
     if not quiet then Format.printf "%t is assumed.@." (Name.print_ident x) ;
     ctx
+
+  | Syntax.TopTyDef ty_list ->
+    let rec add_types_to_context ctx = function
+      | [] -> ctx
+      | (ty_name, constr_list) :: types -> 
+        let ty_name' = TT.new_atom ty_name in
+        let ctx = Context.extend_def ty_name' TT.Type ctx in
+        let rec add_constructors_to_context ctx' c_list = 
+          begin
+            match c_list with 
+            | [] -> ctx'
+            | (constr_name, e) :: constructors_list ->
+              let e', _ = infer ctx e in
+              let ctx' = Context.extend_types constr_name (TT.Ty e') (TT.Ty (TT.Atom ty_name')) ctx' in 
+              add_constructors_to_context ctx' constructors_list
+          end  in
+        let ctx = add_constructors_to_context ctx constr_list in
+        add_types_to_context ctx types in
+    add_types_to_context ctx ty_list
 
 (** Type-check the contents of a file. *)
 and topfile ~quiet ctx lst =
