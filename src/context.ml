@@ -61,6 +61,15 @@ let lookup_types a {types; _} =
     Some e
   with Not_found -> None
 
+(** lookup all the constructors of a given type*)
+let lookup_constructors ty {types; _} = 
+  let rec search_construcotrs acc = function
+    | [] -> acc
+    | (constr_name, (ty_arg, ty_constr)) :: constructors ->
+      if ty_constr = ty then (search_construcotrs (constr_name :: acc) constructors) else 
+        search_construcotrs acc constructors in
+  search_construcotrs [] types
+
 let print_entry (a, ty) ppf =
   Print.print ppf "%t : %t" (TT.print_atom a) (TT.print_ty ~penv:[] ty)
 

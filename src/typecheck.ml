@@ -11,6 +11,7 @@ type type_error =
   | NatExpected of TT.ty
   | CannotInferArgument of Name.ident
   | CannotInferType
+  | InvalidMatch of Name.ident
 
 (** Exception signalling a type error. *)
 exception Error of type_error Location.located
@@ -53,6 +54,9 @@ let print_error ~penv err ppf =
   | CannotInferType ->
     Format.fprintf ppf "cannot infer the type of this expression"
 
+  | InvalidMatch x ->
+    Format.fprintf ppf "Match not exhaustive at constructor %t" (Name.print_ident x)
+
 
 (** [infer ctx e] infers the type [ty] of expression [e]. It returns
     the processed expression [e] and its type [ty].  *)
@@ -61,7 +65,7 @@ let rec infer ctx ({Location.data=e'; loc} as e) =
   let (e'', ty) = infer' ctx e in
   (* Print.debug "%t => %t" (TT.print_expr ~penv:(Context.penv ctx) e'') (TT.print_ty ~penv:(Context.penv ctx) ty); *)
   (e'', ty)
-and infer' ctx {Location.data=e'; loc}= 
+and infer' ctx ({Location.data=e'; loc} as my_expression)= 
   match e' with
   | Syntax.Var k ->
     begin
@@ -188,31 +192,17 @@ and infer' ctx {Location.data=e'; loc}=
     end
 
   | Syntax.Match (e1, match_list) -> 
-    let e1, ty_expr = infer ctx e1 in
-    begin 
-      match match_list with
+    let rec infer_some_branch = function
       | [] -> error ~loc CannotInferType
-      | (constr_name, arg_name, e):: _ -> 
-        let ty_match' = Context.lookup_types constr_name ctx in
-        match ty_match' with
-        | None -> error ~loc CannotInferType
-        | Some (_ty_arg, ty_match) -> 
-          let rec check_match_list_types acc = function
-            | [] -> acc
-            | (constr_name1, var_name, e2) :: match_list' ->
-              let ty_constr' = Context.lookup_types constr_name1 ctx in
-              match ty_constr' with
-              | None -> error ~loc CannotInferType
-              | Some (ty_arg', ty_constr) -> 
-                if ty_constr <> ty_match then (error ~loc (TypeExpected (ty_match, ty_constr))) else
-                  let var = TT.new_atom var_name in 
-                  let ctx' = Context.extend_ident var ty_arg' ctx in
-                  let e2 = check ctx' e2 ty_arg' in
-                  let e2 = TT.abstract var e2 in
-                  check_match_list_types ((constr_name1, var_name, e2)::acc) match_list' in
-          let new_match_list = check_match_list_types [] match_list in
-          TT.Match (e1, new_match_list), ty_match
-    end
+      | (_constr_name, _arg_name, e2) :: rest_of_match -> 
+        try 
+          let _e3, ty_match = infer ctx e2 in
+          ty_match 
+        with (Error _ ) -> infer_some_branch rest_of_match
+    in
+    let ty = infer_some_branch match_list in
+    let checked_match = check ctx my_expression ty in
+    checked_match, ty
 
 
 (** [check ctx e ty] checks that [e] has type [ty] in context [ctx].
@@ -249,6 +239,31 @@ and check ctx ({Location.data=e'; loc} as e) ty =
     let esuc = check ctx esuc ty in (** double check esuc is ok, since m' is not instantiated? *)
     TT.MatchNat (e1, ez, (m, esuc))
 
+  | Syntax.Match (e1, match_list) -> 
+    let e1, ty_expr = infer ctx e1 in
+    let possible_constructors = Context.lookup_constructors ty_expr ctx in
+    begin 
+      let rec check_match_list_types acc constr_list = function
+        | [] -> acc
+        | (constr_name1, var_name, e2) :: match_list' ->
+          let ty_constr' = Context.lookup_types constr_name1 ctx in
+          match ty_constr' with
+          | None -> error ~loc CannotInferType
+          | Some (ty_arg', ty_constr) -> 
+            if ty_constr <> ty_expr then (error ~loc (TypeExpected (ty, ty_constr))) else
+              (* remove the constructor from the list of possible constructors *)
+              let constr_equal, constr_different = List.partition (fun x -> (x = constr_name1)) constr_list in 
+              if (List.length constr_equal) <> 1 then error ~loc (InvalidMatch constr_name1) else
+                (* typecheck the constructor*)
+                let var = TT.new_atom var_name in 
+                let ctx' = Context.extend_ident var ty_arg' ctx in
+                let e2 = check ctx' e2 ty in
+                let e2 = TT.abstract var e2 in
+                check_match_list_types ((constr_name1, var_name, e2) :: acc) constr_different match_list' in
+      let new_match_list = check_match_list_types [] possible_constructors match_list in
+      TT.Match (e1, new_match_list)
+    end
+
 
   | Syntax.Lambda ((_, Some _), _)
   | Syntax.Apply _
@@ -261,7 +276,6 @@ and check ctx ({Location.data=e'; loc} as e) ty =
   | Syntax.Zero
   | Syntax.Succ _
   | Syntax.Constructor _
-  | Syntax.Match _
   | Syntax.Type
   | Syntax.Ascribe _ ->
     let e, ty' = infer ctx e in
